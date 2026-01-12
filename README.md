@@ -1,19 +1,4 @@
-<!-- HACK CLUB BRANDING -->
 <br />
-
-<div align="center">
-  <a href="https://hackclub.com/">
-    <img src="https://assets.hackclub.com/flag-standalone.svg" alt="Hack Club" width="150" />
-  </a>
-</div>
-
-<br />
-<br />
-
-<!-- PROJECT BANNER -->
-<div align="center">
-  <img src="img/banner-roundcorner.png" alt="Kangaroo Terminal Banner" width="100%" style="border-radius: 10px;">
-</div>
 
 <!-- PROJECT LOGO -->
 <div align="center">
@@ -46,7 +31,7 @@ Institutional investors pay **$24,000/year** for terminals that aggregate data a
 A unified, friendly dashboard that:
 1.  **Aggregates Data:** Real-time price, volume, and sector data for ASX listings.
 2.  **Parses Documents:** Automatically scrapes and extracts text from ASX PDF announcements (Annual Reports, Updates).
-3.  **Analyzes Sentiment:** Uses LLMs (Gemini API) to summarize 200-page reports into key bullet points and risk factors.
+3.  **Analyzes Sentiment:** Uses LLMs (Gemini API) to summarise lengthy reports into key bullet points and risk factors.
 4.  **Models Valuation:** Provides interactive DCF (Discounted Cash Flow) sandboxes for students to test valuation assumptions.
 
 ## 🛠 Tech Stack
@@ -61,4 +46,13 @@ A unified, friendly dashboard that:
 
 <div align="center">
   <p><em>Built with 🧡 by Penguino for the Hack Club Flavortown challenge</em></p>
+</div>
+
+<!-- HACK CLUB BRANDING -->
+<br />
+
+<div align="center">
+  <a href="https://hackclub.com/">
+    <img src="https://assets.hackclub.com/flag-standalone.svg" alt="Hack Club" width="150" />
+  </a>
 </div>
