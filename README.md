@@ -1,14 +1,18 @@
-<!-- HACK CLUB BRANDING  -->
-<a href="https://hackclub.com/">
-  <img style="position: absolute; top: 0; left: 0; border: 0; width: 150px;" src="https://assets.hackclub.com/flag-orpheus-top.svg" alt="Hack Club"/>
-</a>
+<!-- HACK CLUB BRANDING -->
+<br />
+
+<div align="center">
+  <a href="https://hackclub.com/">
+    <img src="https://assets.hackclub.com/flag-standalone.svg" alt="Hack Club" width="150" />
+  </a>
+</div>
 
 <br />
 <br />
 
 <!-- PROJECT BANNER -->
 <div align="center">
-  <img src="img/banner.png" alt="Kangaroo Terminal Banner" width="100%" style="border-radius: 10px;">
+  <img src="img/banner-roundcorner.png" alt="Kangaroo Terminal Banner" width="100%" style="border-radius: 10px;">
 </div>
 
 <!-- PROJECT LOGO -->
