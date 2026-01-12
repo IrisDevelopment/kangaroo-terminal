@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+yfinance
+supabase
+python-dotenv
+pandas
