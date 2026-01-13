@@ -1,0 +1,34 @@
+{
+  "name": "kangaroo-terminal",
+  "version": "1.0.0",
+  "description": "<br />",
+  "main": "index.js",
+  "scripts": {
+    "INSTALLATION": "",
+    "setup": "npm install && cd frontend && npm install && cd ../backend && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt",
+    
+    "RUNNER (Mac/Linux)": "",
+    "backend": "cd backend && source venv/bin/activate && uvicorn main:app --reload",
+    "frontend": "cd frontend && npm run dev",
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\" --kill-others --names \"BACKEND,FRONTEND\" --prefix-colors \"yellow,cyan\"",
+    
+    "RUNNER (Windows)": "",
+    "backend:win": "cd backend && venv\\Scripts\\activate && uvicorn main:app --reload",
+    "dev:win": "concurrently \"npm run backend:win\" \"npm run frontend\" --kill-others --names \"BACKEND,FRONTEND\" --prefix-colors \"yellow,cyan\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chefpenguino/kangaroo-terminal.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/chefpenguino/kangaroo-terminal/issues"
+  },
+  "homepage": "https://github.com/chefpenguino/kangaroo-terminal#readme",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
