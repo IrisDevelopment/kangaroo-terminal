@@ -1,9 +1,32 @@
 import asyncio
 import json
+from datetime import datetime, time
+import pytz
 from sqlalchemy.orm import Session
 from database import SessionLocal
 import models
 from scraper import ASXScraper
+
+# sydney timezone
+
+SYDNEY_TZ = pytz.timezone("Australia/Sydney")
+
+def is_market_open() -> bool:
+    """
+    checks if it is currently between 10:00 AM and 4:15 PM sydney time, mon-fri 
+    w/ 15 mins buffer to catch the 'closing auction' final price
+    """
+    now = datetime.now(SYDNEY_TZ)
+
+    # check weekend (5=sat, 6=sun)
+    if now.weekday() > 4:
+        return False
+    
+    current_time = now.time()
+    market_open = time(10, 0)
+    market_close = time(16, 15) # 4:15 PM buffer
+
+    return market_open <= current_time <= market_close
 
 async def clean_price(price_str: str) -> float:
     """
@@ -46,7 +69,7 @@ async def update_database(data: list[dict]):
                 stock.change_percent = item['change_percent']
                 stock.market_cap = item['market_cap']
                 stock.volume = item['volume']
-                stock.last_updated = models.datetime.utcnow()
+                stock.last_updated = datetime.utcnow()
         
         db.commit()
     except Exception as e:
@@ -55,35 +78,51 @@ async def update_database(data: list[dict]):
         db.close()
 
 async def run_market_engine():
-    """main loop"""
-    scraper = ASXScraper()
-    await scraper.start()
+    """main loop w/ check for market open"""
+    print("[🦘] market engine started")
     
-    previous_snapshot = ""
-    
-    try:
-        while True:
-            # 1. get the current state of the table
-            data = await scraper.get_current_data()
+    while True:
+        if is_market_open():
+            print("[🦘] the market is open, starting scraper..")
             
-            if data:
-                # 2. serialise to string to compare easily
-                current_snapshot = json.dumps(data, sort_keys=True)
-                
-                # 3. ONLY SAVE IF somethpchanged
-                if current_snapshot != previous_snapshot:
-                    print(f"[🦘] price update detected! writing to DB...")
-                    await update_database(data)
-                    previous_snapshot = current_snapshot
-                else:
-                    # print a dot so yk it's alive
-                    print(".", end="", flush=True)
+            # start scraper only when required
+            scraper = ASXScraper()
+            await scraper.start()
+            
+            previous_snapshot = ""
+            
+            try:
+                # inner loop: runs while market is open
+                while is_market_open():
+                    # get the current state of the table [1]
+                    data = await scraper.get_current_data()
+                    
+                    if data:
+                        # serialise to string to compare easily [2]
+                        current_snapshot = json.dumps(data, sort_keys=True)
+                        
+                        # ONLY SAVE IF somethpchanged [3]
+                        if current_snapshot != previous_snapshot:
+                            print(f"[🦘] price update detected! writing to DB...")
+                            await update_database(data)
+                            previous_snapshot = current_snapshot
+                        else:
+                            # print a dot so yk it's alive
+                            print(".", end="", flush=True)
 
-            # 4. wait 1s (Fast enough for humans, slow enough for CPUs)
-            # SELF REMINDER whilst testing - market closes at 4PM so don't get confused if it doesn't move LOL
-            await asyncio.sleep(1)
-            
-    except Exception as e:
-        print(f"engine crash: {e}")
-    finally:
-        await scraper.stop()
+                    # 4. wait 1s
+                    await asyncio.sleep(1)
+                
+                print("\n[🦘] the market just closed, stopping scraper..")
+                
+            except Exception as e:
+                print(f"engine crash: {e}")
+            finally:
+                # kill chromium process
+                await scraper.stop()
+                
+        else:
+            # market is closed
+            now = datetime.now(SYDNEY_TZ).strftime("%H:%M:%S")
+            print(f"[💤] market closed ({now}). checking again in 60s...")
+            await asyncio.sleep(60)
