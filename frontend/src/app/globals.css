@@ -1,26 +1,96 @@
 @import "tailwindcss";
 
+@theme {
+    /* colour scheme */
+    --color-background: #0F0B08;
+    --color-surface: #1C140F;
+    --color-primary: #C68E56;
+    --color-secondary: #5E4B3E;
+    --color-text: #EBE3DB;
+    --color-success: #4E9F76;
+    --color-danger: #D65A5A;
+
+/* define gradients */
+--background-image-luxury-gradient: linear-gradient(135deg, #1C140F 0%, #2A1E17 100%);
+--background-image-bronze-glow: linear-gradient(90deg, #C68E56 0%, #D8A473, 100%);
+--background-image-nav-active: linear-gradient(180deg, rgba(62, 44, 33, 0.9) 0%, rgba(30, 20, 15, 0.8) 100%);
+}
+
+/* global reset */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+    background-color: var(--color-background);
+    color: var(--color-text);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+    background-color: var(--color-background);
+    scroll-behavior: smooth;
+    overflow-x: hidden;
+    position: relative;
+}
+
+/* 3d-ish styles */
+
+/* 'luxury card' (for dashboard widgets) */
+.luxury-card {
+    /* 1. force rounder corners */
+    border-radius: 14px;
+    
+    /* 2. transparent border for gradient overlay */
+    border: 0.1px solid transparent;
+    
+    background: 
+        /* layer 1: inner bg (darker, warmer bottom) */
+        linear-gradient(180deg, rgba(30, 22, 18, 0.8) 0%, rgba(15, 11, 8, 1) 100%) padding-box,
+        
+        /* layer 2: the BORDER gradient (the "lighting effect") */
+        /* start with bright gold/peach at top-left, fade to nothing at bottom-right */
+        linear-gradient(135deg, 
+            rgba(255, 218, 185, 0.45) 0%,   /* bright peach highlight */
+            rgba(198, 142, 86, 0.25) 25%,   /* bronze mid-tone */
+            rgba(255, 255, 255, 0.02) 50%,  /* fades out */
+            transparent 100%
+        ) border-box;
+
+    box-shadow:
+        /* top-inner highlight (the sharp rim light inside) */
+        inset 0 1px 0 0 rgba(255, 218, 185, 0.15),
+        /* subtle glow behind the top-left of the card */
+        -5px -5px 30px -10px rgba(198, 142, 86, 0.10),
+        /* deep ambient shadow */
+        0 20px 40px -10px rgba(0, 0, 0, 0.9);
+        
+    backdrop-filter: blur(12px);
+}
+
+/* active sidebar button */
+.nav-item-active {
+    border-radius: 12px;
+    border: 1px solid transparent;
+    
+    background: 
+        var(--background-image-nav-active) padding-box,
+        /* brighter border for the active button */
+        linear-gradient(180deg, rgba(255, 218, 185, 0.3) 0%, rgba(198, 142, 86, 0.1) 100%) border-box;
+        
+    color: var(--color-primary);
+    
+    box-shadow:
+        inset 0 1px 0 rgba(255, 218, 185, 0.1),
+        0 4px 20px rgba(0, 0, 0, 0.6);
+}
+
+/* custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: var(--color-background);
+}
+::-webkit-scrollbar-thumb {
+    background: #2A1E17;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-primary);
 }

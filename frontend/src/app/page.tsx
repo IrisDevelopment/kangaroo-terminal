@@ -1,65 +1,75 @@
-import Image from "next/image";
+"use client";
+import { ArrowUpRight, ArrowDownRight } from "lucide-react";
+
+// using luxury card class
+const StockCard = ({ ticker, name, price, change, isPositive }: any) => (
+  <div className="luxury-card group relative p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_40px_-10px_rgba(198,142,86,0.1)]">
+    
+    {/* header */}
+    <div className="flex justify-between items-start mb-6">
+      <div className="flex items-center gap-3">
+        {/* icon placeholder */}
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ${isPositive ? 'bg-orange-500/10 text-orange-500' : 'bg-gray-700/30 text-gray-400'}`}>
+           {ticker[0]}
+        </div>
+        <div>
+          <h3 className="text-lg font-bold text-white leading-none">{ticker}</h3>
+          <p className="text-xs text-gray-500 font-medium mt-1">{name}</p>
+        </div>
+      </div>
+      
+      {/* mini sparkline */}
+      <div className="flex gap-0.5 items-end h-8 opacity-50">
+        {[40, 60, 45, 70, 50, 80, 60, 85].map((h, i) => (
+          <div key={i} style={{ height: `${h}%` }} className={`w-1 rounded-sm ${isPositive ? 'bg-success' : 'bg-danger'}`}></div>
+        ))}
+      </div>
+    </div>
+    
+    {/* price area */}
+    <div className="space-y-1">
+      <span className="text-2xl font-bold tracking-tight text-white">{price}</span>
+      
+      <div className="flex items-center gap-2">
+        <div className={`flex items-center text-xs font-bold px-1.5 py-0.5 rounded ${isPositive ? 'text-success bg-success/10' : 'text-danger bg-danger/10'}`}>
+          {isPositive ? <ArrowUpRight size={12} className="mr-1"/> : <ArrowDownRight size={12} className="mr-1"/>}
+          {change}%
+        </div>
+        <span className="text-[10px] text-gray-600 uppercase tracking-wider">Last 24h</span>
+      </div>
+    </div>
+  </div>
+);
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div>
+      {/* Hero Section */}
+      <div className="flex justify-between items-end mb-8">
+        <div>
+          <h2 className="text-3xl font-bold text-white">Overview</h2>
+          {/* not really, just a placeholder for now LOL */}
+          <p className="text-gray-500 text-sm mt-1">Real-time market intelligence</p> 
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        
+        {/* global ticker for the asx200 */}
+        <div className="flex items-center gap-4 text-xs font-mono text-gray-400">
+           <span>ASX200: <span className="text-white">$8,808.50</span></span>
+           <span className="text-success">↑ 0.5%</span>
         </div>
-      </main>
+      </div>
+
+      {/* placeholder price data just for the sake of testing */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StockCard ticker="BHP" name="BHP Group" price="45.23" change="1.2" isPositive={true} />
+        <StockCard ticker="CBA" name="CommBank" price="112.50" change="0.4" isPositive={false} />
+        <StockCard ticker="CSL" name="CSL Limited" price="290.10" change="0.8" isPositive={true} />
+        <StockCard ticker="WBC" name="Westpac" price="24.15" change="1.1" isPositive={false} />
+        <StockCard ticker="FMG" name="Fortescue" price="21.30" change="2.5" isPositive={true} />
+        <StockCard ticker="RIO" name="Rio Tinto" price="125.80" change="0.1" isPositive={true} />
+        <StockCard ticker="TLS" name="Telstra" price="3.95" change="0.2" isPositive={false} />
+        <StockCard ticker="WOW" name="Woolworths" price="34.20" change="0.5" isPositive={false} />
+      </div>
     </div>
   );
 }
