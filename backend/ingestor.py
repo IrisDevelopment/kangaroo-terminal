@@ -2,7 +2,7 @@ import asyncio
 import json
 from datetime import datetime, time
 import pytz
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session # type: ignore
 from database import SessionLocal
 import models
 from scraper import ASXScraper
@@ -94,14 +94,14 @@ async def run_market_engine():
             try:
                 # inner loop: runs while market is open
                 while is_market_open():
-                    # get the current state of the table [1]
+                    # get the current state of the table 
                     data = await scraper.get_current_data()
                     
                     if data:
-                        # serialise to string to compare easily [2]
+                        # serialise to string to compare easily 
                         current_snapshot = json.dumps(data, sort_keys=True)
                         
-                        # ONLY SAVE IF somethpchanged [3]
+                        # ONLY SAVE IF somethpchanged 
                         if current_snapshot != previous_snapshot:
                             print(f"[🦘] price update detected! writing to DB...")
                             await update_database(data)

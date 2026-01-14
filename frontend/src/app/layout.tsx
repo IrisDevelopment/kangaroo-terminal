@@ -4,6 +4,8 @@ import "./globals.css";
 import Sidebar from "./components/Sidebar";
 import { Search } from "lucide-react"; // icons
 import Header from "./components/Header";
+import { SidebarProvider } from "@/context/SidebarContext";
+import PageWrapper from "@/app/components/PageWrapper"
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -19,6 +21,9 @@ const instrumentSerif = Instrument_Serif({
 export const metadata: Metadata = {
     title: "Kangaroo Terminal | ASX Intelligence",
     description: "Advanced financial analytics for the Aussie market.",
+    icons:  {
+        icon: "/assets/favicon.ico",
+    },
 };
 
 export default function RootLayout({
@@ -29,14 +34,16 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body className={`${inter.variable} ${instrumentSerif.variable} font-sans antialiased`}>
+            <SidebarProvider>
                 <div className="flex min-h-screen bg-background text-text">
                     <Sidebar />
-                    <main className="flex-1 ml-64 p-8">
+                    <PageWrapper>
                         {/* Header.tsx */}
                         <Header />
                         {children}
-                    </main>
+                    </PageWrapper>
                 </div>
+            </SidebarProvider>
             </body>
         </html>
     );

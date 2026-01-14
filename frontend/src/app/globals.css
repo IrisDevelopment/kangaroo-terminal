@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@theme {
+@theme { 
     /* colour scheme */
     --color-background: #0F0B08;
     --color-surface: #1C140F;
@@ -37,29 +37,29 @@ body {
 
 /* 'luxury card' (for dashboard widgets) */
 .luxury-card {
-    /* 1. force rounder corners */
+    /* force rounder corners */
     border-radius: 14px;
     
-    /* 2. transparent border for gradient overlay */
+    /* transparent border for gradient overlay */
     border: 0.1px solid transparent;
     
     background: 
-        /* layer 1: inner bg (darker, warmer bottom) */
+        /* inner bg (darker, warmer bottom) */
         linear-gradient(180deg, rgba(30, 22, 18, 0.8) 0%, rgba(15, 11, 8, 1) 100%) padding-box,
         
-        /* layer 2: the BORDER gradient (the "lighting effect") */
+        /* border gradient (lighting effect) */
         /* start with bright gold/peach at top-left, fade to nothing at bottom-right */
         linear-gradient(135deg, 
-            rgba(255, 218, 185, 0.45) 0%,   /* bright peach highlight */
-            rgba(198, 142, 86, 0.25) 25%,   /* bronze mid-tone */
-            rgba(255, 255, 255, 0.02) 50%,  /* fades out */
+            rgba(255, 218, 185, 0.45) 0%,   
+            rgba(198, 142, 86, 0.25) 25%,   
+            rgba(255, 255, 255, 0.02) 50%,  
             transparent 100%
         ) border-box;
 
     box-shadow:
-        /* top-inner highlight (the sharp rim light inside) */
+        /* top-inner highlight */
         inset 0 1px 0 0 rgba(255, 218, 185, 0.15),
-        /* subtle glow behind the top-left of the card */
+        /* subtle glow behind the top-left */
         -5px -5px 30px -10px rgba(198, 142, 86, 0.10),
         /* deep ambient shadow */
         0 20px 40px -10px rgba(0, 0, 0, 0.9);

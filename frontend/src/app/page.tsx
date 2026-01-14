@@ -1,6 +1,7 @@
 "use client";
 import { ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
+import Link from "next/link";
 
 const StockCard = ({ ticker, name, price, change, changePercent }: any) => {
   const isPositive = change >= 0;
@@ -169,14 +170,15 @@ export default function Home() {
       {/* data grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[...stocks].sort((a, b) => b.price - a.price).map((stock) => (
-          <StockCard 
-            key={stock.ticker}
-            ticker={stock.ticker} 
-            name={stock.name} 
-            price={stock.price} 
-            change={stock.change_amount}
-            changePercent={stock.change_percent} 
-          />
+          <Link href={`/stock/${stock.ticker}`} key={stock.ticker}>
+            <StockCard 
+              ticker={stock.ticker} 
+              name={stock.name} 
+              price={stock.price} 
+              change={stock.change_amount}
+              changePercent={stock.change_percent} 
+            />
+          </Link>
         ))}
       </div>
     </div>
