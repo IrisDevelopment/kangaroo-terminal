@@ -10,10 +10,14 @@
     --color-success: #4E9F76;
     --color-danger: #D65A5A;
 
-/* define gradients */
---background-image-luxury-gradient: linear-gradient(135deg, #1C140F 0%, #2A1E17 100%);
---background-image-bronze-glow: linear-gradient(90deg, #C68E56 0%, #D8A473, 100%);
---background-image-nav-active: linear-gradient(180deg, rgba(62, 44, 33, 0.9) 0%, rgba(30, 20, 15, 0.8) 100%);
+    /* gradients */
+    --background-image-luxury-gradient: linear-gradient(135deg, #1C140F 0%, #2A1E17 100%);
+    --background-image-bronze-glow: linear-gradient(90deg, #C68E56 0%, #D8A473, 100%);
+    --background-image-nav-active: linear-gradient(180deg, rgba(62, 44, 33, 0.9) 0%, rgba(30, 20, 15, 0.8) 100%);
+
+    /* fonts */
+    --font-instrument: var(--font-instrument);
+    --font-sans: var(--font-inter);
 }
 
 /* global reset */

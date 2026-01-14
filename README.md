@@ -2,7 +2,7 @@
 
 <!-- PROJECT LOGO -->
 <div align="center">
-  <img src="img/square.png" alt="Kangaroo Terminal Logo" width="160" height="160"> 
+  <img src="frontend/public/assets/circle.png" alt="Kangaroo Terminal Logo" width="160" height="160"> 
   <h1 style="font-size: 3rem; margin-top: 10px;">Kangaroo Terminal</h1>
   
   <p>
