@@ -13,3 +13,5 @@ newspaper3k
 lxml
 readability-lxml
 google.genai
+asyncio
+nest_asyncio

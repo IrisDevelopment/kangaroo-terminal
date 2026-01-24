@@ -1,4 +1,5 @@
 "use client";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
@@ -12,7 +13,10 @@ import {
   ChevronRight,
   Star,
   Briefcase,
-  Globe
+  Globe,
+  Landmark,
+  Swords,
+  Radar
 } from "lucide-react";
 import { useSidebar } from "@/context/SidebarContext"
 
@@ -47,7 +51,35 @@ const NavItem = ({ href, label, icon: Icon, active, layoutId, collapsed }: any) 
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { isCollapsed, toggleSidebar } = useSidebar(); // use state
+  const { isCollapsed, toggleSidebar } = useSidebar(); 
+  
+  const [scraperStatus, setScraperStatus] = useState<any>({ status: "Offline", details: "Initialising..." });
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+        try {
+            const res = await fetch("http://localhost:8000/scraper-status");
+            if (res.ok) setScraperStatus(await res.json());
+        } catch(e) { 
+            setScraperStatus({ status: "Offline", details: "Connection Error" });
+        }
+    };
+    
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const getStatusColor = () => {
+      const s = scraperStatus.status?.toLowerCase() || "";
+      if (s === "active" || s.includes("scraping")) return "text-success bg-success";
+      if (s === "sleeping" || s === "standing by") return "text-primary bg-primary";
+      if (s === "closed") return "text-gray-500 bg-gray-500";
+      return "text-danger bg-danger";
+  };
+  
+  const colorClass = getStatusColor().split(" ")[0];
+  const bgClass = getStatusColor().split(" ")[1];
 
   return (
   <motion.aside 
@@ -87,28 +119,34 @@ export default function Sidebar() {
 
     {/* nav links */}
     <nav className="flex-1 mt-4">
-    {!isCollapsed && <div className="px-6 mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider animate-in fade-in">Main</div>}
+    {!isCollapsed && <div className="px-6 mb-2 text-xs font-bold text-gray-700 uppercase tracking-wider animate-in fade-in">Monitor</div>}
     
     <NavItem href="/" label="Dashboard" icon={LayoutDashboard} active={pathname === "/"} layoutId="nav-highlight" collapsed={isCollapsed} />
-    <NavItem href="/watchlist" label="Watchlist" icon={Star} active={pathname === "/watchlist"} layoutId="nav-highlight" collapsed={isCollapsed} />
-    <NavItem href="/screener" label="Screener" icon={ScanLine} active={pathname === "/screener"} layoutId="nav-highlight" collapsed={isCollapsed} />
-
-    {!isCollapsed && <div className="px-6 mb-2 mt-6 text-xs font-bold text-gray-700 uppercase tracking-wider animate-in fade-in">Trade</div>}
     <NavItem href="/portfolio" label="Portfolio" icon={Briefcase} active={pathname === "/portfolio"} layoutId="nav-highlight" collapsed={isCollapsed} />
+    <NavItem href="/watchlist" label="Watchlist" icon={Star} active={pathname === "/watchlist"} layoutId="nav-highlight" collapsed={isCollapsed} />
+
+    {!isCollapsed && <div className="px-6 mb-2 mt-6 text-xs font-bold text-gray-700 uppercase tracking-wider animate-in fade-in">Analysis</div>}
+    
+    <NavItem href="/screener" label="Screener" icon={ScanLine} active={pathname === "/screener"} layoutId="nav-highlight" collapsed={isCollapsed} />
+    <NavItem href="/hunter" label="Signal Hunter" icon={Radar} active={pathname === "/hunter"} layoutId="nav-highlight" collapsed={isCollapsed} />
+    <NavItem href="/compare" label="Arena Mode" icon={Swords} active={pathname === "/compare"} layoutId="nav-highlight" collapsed={isCollapsed} />
+    <NavItem href="/ai" label="AI Analyst" icon={BrainCircuit} active={pathname === "/ai"} layoutId="nav-highlight" collapsed={isCollapsed} />
     </nav>
 
     {/* status */}
     <div className="p-4">
     <div className={`luxury-card rounded-xl flex items-center gap-3 ${isCollapsed ? "p-2 justify-center" : "p-4"}`}>
       <div className="relative shrink-0">
-      <Activity size={16} className="text-success" />
-      <div className="absolute top-0 right-0 w-2 h-2 rounded-full bg-success animate-pulse -mr-1 -mt-1 shadow-[0_0_10px_#4E9F76]"></div>
+      <Activity size={16} className={colorClass} />
+      <div className={`absolute top-0 right-0 w-2 h-2 rounded-full ${bgClass} animate-pulse -mr-1 -mt-1 shadow-[0_0_10px_currentColor]`}></div>
       </div>
       
       {!isCollapsed && (
       <div className="overflow-hidden">
         <p className="text-xs text-gray-400 font-medium whitespace-nowrap">Scraper Status</p>
-        <p className="text-[10px] text-success tracking-wider uppercase font-bold whitespace-nowrap">Operational</p>
+        <p className={`text-[10px] ${colorClass} tracking-wider uppercase font-bold whitespace-nowrap truncate`} title={scraperStatus.details}>
+            {scraperStatus.status}
+        </p>
       </div>
       )}
     </div>

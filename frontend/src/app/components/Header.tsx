@@ -1,8 +1,9 @@
 "use client";
-import { Search, X, Loader2 } from "lucide-react"; 
+import { Search, X, Loader2, Terminal } from "lucide-react"; 
 import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
@@ -13,6 +14,7 @@ export default function Header() {
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   
+  const [searchFocused, setSearchFocused] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -76,35 +78,48 @@ export default function Header() {
   return (
     <header className="flex justify-between items-center mb-10 z-40 relative">
       {/* search bar */}
-      <div ref={searchRef} className="relative w-96 group z-50">
+      <motion.div 
+        ref={searchRef} 
+        initial={{ width: 384 }} // w-96 = 24rem = 384px
+        animate={{ width: searchFocused ? 600 : 384 }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="relative group z-50"
+      >
         
         {/* input field */}
         <div className="relative">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-primary transition-colors">
-            {loading ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
-            </div>
-            
             <input
             type="text"
             placeholder="Search Ticker (e.g. BHP)..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => { if(results.length > 0) setShowDropdown(true); }}
-            className="w-full bg-surface border border-white/10 rounded-xl pl-12 pr-12 py-3 text-sm focus:outline-none focus:border-primary/50 transition-colors shadow-lg placeholder-gray-600 text-white"
+            onFocus={() => { 
+                setSearchFocused(true);
+                if(results.length > 0) setShowDropdown(true); 
+            }}
+            onBlur={() => {
+                // small delay to allow click on dropdown items
+                setTimeout(() => setSearchFocused(false), 200);
+            }}
+            className="w-full bg-surface border border-white/10 rounded-full pl-12 pr-12 py-3 text-sm focus:outline-none focus:border-white/20 ring-1 ring-white/5 shadow-[0_0_20px_rgba(0,0,0,0.3),inset_0_2px_10px_rgba(0,0,0,0.4)] placeholder-gray-600 text-white backdrop-blur-md transition-all"
             />
+            
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-white transition-colors pointer-events-none z-10">
+            {loading ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+            </div>
             
             {/* clear button (only on typing) */}
             {query && (
                 <button 
                     onClick={() => { setQuery(""); setShowDropdown(false); }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-white"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-500 hover:text-white hover:bg-white/10 rounded-full transition-colors"
                 >
-                    <X size={14} />
+                    <X size={12} />
                 </button>
             )}
             
             {!query && (
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-600 bg-white/5 px-2 py-0.5 rounded border border-white/5 pointer-events-none">
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] text-gray-600 font-bold bg-white/5 px-1.5 py-0.5 rounded border border-white/5 pointer-events-none">
                     ⌘ K
                 </span>
             )}
@@ -112,7 +127,7 @@ export default function Header() {
 
         {/* dropdown results */}
         {showDropdown && results.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-surface border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="absolute top-full left-0 right-0 mt-3 bg-surface border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="py-2">
                     {results.map((stock) => (
                         <button
@@ -148,11 +163,11 @@ export default function Header() {
                 </div>
             </div>
         )}
-      </div>
+      </motion.div>
 
       <div className="flex items-center gap-6">
-        {/* status asx200 open/close */}
-        <div className={`px-4 py-2 bg-surface rounded-full border border-white/5 flex items-center gap-2 transition-colors ${isOpen ? 'shadow-[0_0_10px_rgba(78,159,118,0.2)]' : ''}`}>
+        {/* status asx200 open/close (matched to search input size) */}
+        <div className={`px-4 py-2 bg-surface rounded-full border border-white/10 flex items-center gap-2 transition-all ring-1 ring-white/5 backdrop-blur-md shadow-[inset_0_2px_10px_rgba(0,0,0,0.4)] self-center ${isOpen ? 'shadow-[0_0_10px_rgba(78,159,118,0.12)]' : ''}`}>
           <span className={`w-1.5 h-1.5 rounded-full ${isOpen ? "bg-success animate-pulse" : "bg-gray-500"}`}></span>
           <span className={`text-[14px] font-instrument uppercase tracking-wider ${isOpen ? "text-white" : "text-gray-500"}`}>
             {isOpen ? "ASX Open" : "ASX Closed"}

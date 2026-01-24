@@ -5,15 +5,15 @@
   "main": "index.js",
   "scripts": {
     "INSTALLATION": "",
-    "setup": "npm install && cd frontend && npm install && cd ../backend && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt",
+    "setup": "npm install && cd frontend && npm install && cd ../backend && uv venv --python 3.12 && source .venv/bin/activate && uv pip install -r requirements.txt",
     
     "RUNNER (Mac/Linux)": "",
-    "backend": "cd backend && source venv/bin/activate && uvicorn main:app --reload",
+    "backend": "cd backend && source .venv/bin/activate && uvicorn main:app --reload",
     "frontend": "cd frontend && npm run dev",
     "dev": "concurrently \"npm run backend\" \"npm run frontend\" --kill-others --names \"BACKEND,FRONTEND\" --prefix-colors \"yellow,cyan\"",
     
     "RUNNER (Windows)": "",
-    "backend:win": "cd backend && venv\\Scripts\\activate && uvicorn main:app --reload",
+    "backend:win": "cd backend && .venv\\Scripts\\activate && uvicorn main:app --reload",
     "dev:win": "concurrently \"npm run backend:win\" \"npm run frontend\" --kill-others --names \"BACKEND,FRONTEND\" --prefix-colors \"yellow,cyan\""
   },
   "repository": {

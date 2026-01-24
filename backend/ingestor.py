@@ -12,6 +12,17 @@ import yfinance as yf # type: ignore
 
 SYDNEY_TZ = pytz.timezone("Australia/Sydney")
 
+# global status
+ENGINE_STATUS = {
+    "status": "Offline",
+    "details": "Initializing...",
+    "last_run": None,
+    "active": False
+}
+
+def get_engine_status():
+    return ENGINE_STATUS
+
 def is_market_open() -> bool:
     """
     checks if it is currently between 10:00 AM and 4:15 PM sydney time, mon-fri 
@@ -51,7 +62,7 @@ async def clean_price(price_str: str) -> float:
         return float(clean)
     except:
         return 0.0
-
+    
 async def update_database(data: list[dict]):
     db: Session = SessionLocal()
     try:
@@ -92,7 +103,7 @@ async def update_database(data: list[dict]):
                 stock.change_percent = item['change_percent']
                 stock.market_cap = item['market_cap']
                 stock.volume = item['volume']
-                stock.last_updated = datetime.utcnow()
+                stock.last_updated = datetime.now()
         
         db.commit()
     except Exception as e:
@@ -103,10 +114,14 @@ async def update_database(data: list[dict]):
 async def run_market_engine():
     """main loop w/ check for market open"""
     print("[🦘] market engine started")
+    ENGINE_STATUS["status"] = "Standing By"
+    ENGINE_STATUS["active"] = True
     
     while True:
         if is_market_open():
             print("[🦘] the market is open, starting scraper..")
+            ENGINE_STATUS["status"] = "Active"
+            ENGINE_STATUS["details"] = "Scraping Live Markets"
             
             # start scraper only when required
             scraper = ASXScraper()
@@ -119,6 +134,7 @@ async def run_market_engine():
                 while is_market_open():
                     # get the current state of the table 
                     data = await scraper.get_current_data()
+                    ENGINE_STATUS["last_run"] = datetime.now().isoformat()
                     
                     if data:
                         # serialise to string to compare easily 
@@ -137,9 +153,13 @@ async def run_market_engine():
                     await asyncio.sleep(1)
                 
                 print("\n[🦘] the market just closed, stopping scraper..")
+                ENGINE_STATUS["status"] = "Closed"
+                ENGINE_STATUS["details"] = "Market Closed"
                 
             except Exception as e:
                 print(f"engine crash: {e}")
+                ENGINE_STATUS["status"] = "Error"
+                ENGINE_STATUS["details"] = str(e)
             finally:
                 # kill chromium process
                 await scraper.stop()
@@ -148,4 +168,6 @@ async def run_market_engine():
             # market is closed
             now = datetime.now(SYDNEY_TZ).strftime("%H:%M:%S")
             print(f"[💤] market closed ({now}). checking again in 60s...")
+            ENGINE_STATUS["status"] = "Sleeping"
+            ENGINE_STATUS["details"] = f"Market Closed (Time: {now})"
             await asyncio.sleep(60)
