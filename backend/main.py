@@ -51,23 +51,75 @@ models.Base.metadata.create_all(bind=engine)
 SCAN_CACHE = []
 LAST_SCAN_TIME = None
 
+async def alert_monitor_task():
+    """
+    background loop that checks active alerts every 10 seconds
+    """
+    print("🔔 [Alerts] Monitor starting...")
+    while True:
+        try:
+            # create dedicated session
+            db = SessionLocal()
+            try:
+                active_alerts = db.query(models.Alert).filter(models.Alert.status == "ACTIVE").all()
+                
+                if active_alerts:
+                    # tickers to check
+                    tickers = list(set([a.ticker for a in active_alerts]))
+                    
+                    for ticker in tickers:
+                        # fetch price
+                        try:
+                            t_obj = yf.Ticker(f"{ticker}.AX")
+                            current_price = t_obj.fast_info['last_price']
+                        except:
+                            # fallback
+                            try:
+                                current_price = t_obj.history(period='1d')['Close'].iloc[-1]
+                            except:
+                                print(f"⚠️ [Alerts] failed to fetch price for {ticker}")
+                                continue
+                        
+                        # check conditions
+                        relevant_alerts = [a for a in active_alerts if a.ticker == ticker]
+                        for alert in relevant_alerts:
+                            triggered = False
+                            if alert.condition == "ABOVE" and current_price >= alert.target_price:
+                                triggered = True
+                            elif alert.condition == "BELOW" and current_price <= alert.target_price:
+                                triggered = True
+                                
+                            if triggered:
+                                print(f"🚨 [Alerts] triggered: {alert.ticker} is {alert.condition} {alert.target_price} (Current: {current_price})")
+                                alert.status = "TRIGGERED"
+                                db.commit()
+                                
+            finally:
+                db.close()
+
+            await asyncio.sleep(10) # check every 10s
+            
+        except Exception as e:
+            print(f"[Alerts] monitor error: {e}")
+            await asyncio.sleep(10)
+
 async def scanner_background_task():
     """
-    Background loop that updates the market scan every 15 minutes.
-    This prevents the /scanner/run endpoint from hanging.
+    background loop that updates the market scan every 15 minutes.
+    this prevents the /scanner/run endpoint from hanging.
     """
     global SCAN_CACHE
     global LAST_SCAN_TIME
     
     while True:
         try:
-            print("🔄 [Background] Starting Market Scan...")
+            print("🔄 [Background] starting market scan...")
             # create dedicated session
             db = SessionLocal()
             try:
                 stocks = db.query(models.Stock).all()
                 if not stocks:
-                    print("⚠️ [Background] No stocks found to scan.")
+                    print("⚠️ [Background] no stocks found to scan.")
                     await asyncio.sleep(60) 
                     continue
 
@@ -77,7 +129,7 @@ async def scanner_background_task():
                 # update cache
                 SCAN_CACHE = sorted(results, key=lambda x: x.get('score', 0), reverse=True)
                 LAST_SCAN_TIME = datetime.now()
-                print(f"✅ [Background] Scan Complete. {len(SCAN_CACHE)} signals found.")
+                print(f"✅ [Background] scan complete. {len(SCAN_CACHE)} signals found.")
                 
             finally:
                 db.close()
@@ -86,7 +138,7 @@ async def scanner_background_task():
             await asyncio.sleep(900)
             
         except Exception as e:
-            print(f"❌ [Background] Scanner Failed: {e}")
+            print(f"[Background] scanner failed: {e}")
             await asyncio.sleep(60) # retry in 1m upon fail
 
 @asynccontextmanager
@@ -95,6 +147,7 @@ async def lifespan(app: FastAPI):
     print("[🦘] kangaroo engine starting...")
     scraper_task = asyncio.create_task(run_market_engine())
     scanner_task = asyncio.create_task(scanner_background_task())
+    alerts_task = asyncio.create_task(alert_monitor_task())
     
     yield  # runs here
     
@@ -102,9 +155,11 @@ async def lifespan(app: FastAPI):
     print("[🦘] kangaroo engine shutting down...")
     scraper_task.cancel()
     scanner_task.cancel()
+    alerts_task.cancel()
     try:
         await scraper_task
         await scanner_task
+        await alerts_task
     except asyncio.CancelledError:
         pass # cancelled successfully
 
@@ -678,6 +733,179 @@ async def get_watchlist(db: Session = Depends(get_db)):
     """returns watched stocks"""
     return db.query(models.Stock).filter(models.Stock.is_watched == True).all()
 
+@app.get("/calendar/upcoming")
+async def get_upcoming_calendar(db: Session = Depends(get_db)):
+    """
+    scans watchlist & portfolio for upcoming corporate events (earnings, dividends).
+    """
+    # gather unique tickers
+    watched = db.query(models.Stock).filter(models.Stock.is_watched == True).all()
+    holdings = db.query(models.Holding).all()
+    
+    tickers = set([s.ticker for s in watched] + [h.ticker for h in holdings])
+    
+    events = []
+    today = datetime.now().date()
+    
+    # scan each ticker
+    for ticker in tickers:
+        try:
+            symbol = f"{ticker}.AX"
+            stock = yf.Ticker(symbol)
+            cal = stock.calendar
+            
+            # earnings 
+            earnings_date = None
+            note = ""
+            
+            if cal and 'Earnings Date' in cal:
+                ed = cal['Earnings Date']
+                # handle list
+                if isinstance(ed, list) and len(ed) > 0:
+                    earnings_date = ed[0]
+                elif ed:
+                    earnings_date = ed
+            
+            if earnings_date:
+                # ensure it's a date object
+                if hasattr(earnings_date, 'date'):
+                    earnings_date = earnings_date.date()
+                    
+                if earnings_date >= today:
+                    events.append({
+                        "ticker": ticker,
+                        "type": "EARNINGS",
+                        "date": earnings_date.strftime("%Y-%m-%d"),
+                        "note": "Estimated" 
+                    })
+
+            # dividends
+            ex_div = cal.get('Ex-Dividend Date') if cal else None
+            is_estimated = False
+            
+            # convert to date if needed
+            if ex_div and hasattr(ex_div, 'date'):
+                ex_div = ex_div.date()
+            
+            # if there isn't an ex-div date then estimate based on dividend history
+            if not ex_div or ex_div < today:
+                try:
+                    divs = stock.dividends
+                    if not divs.empty:
+                        last_div_date = divs.index[-1].date()
+                        # +6 months (182 days) prediction for interim/final dividend
+                        next_est = last_div_date + pd.Timedelta(days=182)
+                        if next_est >= today:
+                            ex_div = next_est
+                            is_estimated = True
+                except Exception as e:
+                    print(f"  Dividend estimation error for {ticker}: {e}")
+                    pass
+            
+            if ex_div and ex_div >= today:
+                events.append({
+                    "ticker": ticker,
+                    "type": "DIVIDEND",
+                    "date": ex_div.strftime("%Y-%m-%d"),
+                    "note": "Estimated" if is_estimated else "Confirmed"
+                })
+                     
+        except Exception as e:
+            print(f"Calendar scan error for {ticker}: {e}")
+            import traceback
+            traceback.print_exc()
+            continue
+
+    # sort by date (nearest first)
+    events.sort(key=lambda x: x['date'])
+    
+    print(f"[Calendar] Found {len(events)} total events for {len(tickers)} tickers")
+    for evt in events[:5]:  # log the first 5 events
+        print(f"  - {evt['ticker']}: {evt['type']} on {evt['date']}")
+    
+    return events
+
+# cache for macro calendar
+macro_cache = {
+    "data": [],
+    "last_updated": datetime.min
+}
+CACHE_TTL_MINUTES = 30
+
+@app.get("/macro/calendar")
+async def get_macro_calendar():
+    """
+    Fetches economic calendar from ForexFactory XML feed with 30-min caching.
+    """
+    global macro_cache
+    
+    # check cache
+    now = datetime.now()
+    if (now - macro_cache["last_updated"]).total_seconds() < CACHE_TTL_MINUTES * 60:
+        if macro_cache["data"]:
+            return macro_cache["data"]
+
+    try:
+        url = "https://nfs.faireconomy.media/ff_calendar_thisweek.xml"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        response = requests.get(url, timeout=10, headers=headers)
+        
+        if response.status_code != 200:
+            return macro_cache["data"] # return stale cache if error
+            
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(response.content)
+        
+        events = []
+        # currencies relevant to ASX
+        relevant_currencies = ["AUD", "USD", "CNY", "EUR", "JPY"]
+        
+        for event in root.findall('event'):
+            country_el = event.find('country')
+            country = country_el.text if country_el is not None else ""
+            
+            if country in relevant_currencies:
+                title_el = event.find('title')
+                impact_el = event.find('impact')
+                date_el = event.find('date')
+                time_el = event.find('time')
+                
+                title = title_el.text if title_el is not None else "Unknown Event"
+                impact = impact_el.text if impact_el is not None else "Low"
+                date_str = date_el.text if date_el is not None else ""
+                time_str = time_el.text if time_el is not None else ""
+                
+                # format date to YYYY-MM-DD
+                try:
+                    dt = datetime.strptime(date_str, "%m-%d-%Y")
+                    formatted_date = dt.strftime("%Y-%m-%d")
+                except:
+                    formatted_date = date_str
+
+                forecast_el = event.find('forecast')
+                forecast = forecast_el.text if forecast_el is not None else ""
+
+                events.append({
+                    "title": title,
+                    "country": country,
+                    "date": formatted_date,
+                    "time": time_str,
+                    "impact": impact,
+                    "forecast": forecast
+                })
+        
+        # update cache
+        macro_cache["data"] = events
+        macro_cache["last_updated"] = now
+        
+        return events
+        
+    except Exception as e:
+        print(f"Macro calendar error: {e}")
+        return []
+
 @app.get("/portfolio")
 async def get_portfolio(db: Session = Depends(get_db)):
     """
@@ -772,7 +1000,7 @@ async def get_portfolio_risk(db: Session = Depends(get_db)):
             return {"error": "Could not fetch data"}
 
         # calculate daily returns (percentage change)
-        returns = data.pct_change().dropna()
+        returns = data.pct_change(fill_method=None).dropna()
         
         # calculate correlation
         corr_matrix = returns.corr()
@@ -1301,6 +1529,46 @@ def run_scanner(db: Session = Depends(get_db)):
          return []
     
     return SCAN_CACHE
+
+class AlertRequest(BaseModel):
+    ticker: str
+    target_price: float
+    condition: str # "ABOVE", "BELOW", or "REMINDER"
+    note: str = None
+
+@app.get("/alerts")
+async def get_alerts(db: Session = Depends(get_db)):
+    """fetch all alerts (history)"""
+    return db.query(models.Alert).order_by(models.Alert.created_at.desc()).all()
+
+@app.get("/alerts/triggered")
+async def get_triggered_alerts(db: Session = Depends(get_db)):
+    """fetch only triggered alerts (for notifications)"""
+    return db.query(models.Alert).filter(models.Alert.status == "TRIGGERED").order_by(models.Alert.created_at.desc()).all()
+
+@app.post("/alerts")
+async def create_alert(alert: AlertRequest, db: Session = Depends(get_db)):
+    db_alert = models.Alert(
+        ticker=alert.ticker.upper(),
+        target_price=alert.target_price,
+        condition=alert.condition,
+        status="ACTIVE",
+        note=alert.note
+    )
+    db.add(db_alert)
+    db.commit()
+    db.refresh(db_alert)
+    return db_alert
+
+@app.delete("/alerts/{alert_id}")
+async def delete_alert(alert_id: int, db: Session = Depends(get_db)):
+    alert = db.query(models.Alert).filter(models.Alert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    
+    db.delete(alert)
+    db.commit()
+    return {"status": "deleted"}
 
 
 class ChatRequest(BaseModel):

@@ -41,3 +41,13 @@ class TransactionHistory(Base):
     shares = Column(Integer)
     price = Column(Float)
     timestamp = Column(DateTime, default=datetime.utcnow)
+
+class Alert(Base):
+    __tablename__ = "alerts"
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True)          # "BHP"
+    target_price = Column(Float)                 # 45.50
+    condition = Column(String)                   # "ABOVE", "BELOW", or "REMINDER"
+    status = Column(String, default="ACTIVE")    # "ACTIVE", "TRIGGERED"
+    note = Column(String, nullable=True)         # "Dividend on 2026-02-15"
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

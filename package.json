@@ -6,15 +6,13 @@
   "scripts": {
     "INSTALLATION": "",
     "setup": "npm install && cd frontend && npm install && cd ../backend && uv venv --python 3.12 && source .venv/bin/activate && uv pip install -r requirements.txt",
-    
     "RUNNER (Mac/Linux)": "",
     "backend": "cd backend && source .venv/bin/activate && uvicorn main:app --reload",
     "frontend": "cd frontend && npm run dev",
-    "dev": "concurrently \"npm run backend\" \"npm run frontend\" --kill-others --names \"BACKEND,FRONTEND\" --prefix-colors \"yellow,cyan\"",
-    
+    "dev": "concurrently \"npm run backend\" \"npx wait-on tcp:8000 && npm run frontend\" --kill-others --names \"BACKEND,FRONTEND\" --prefix-colors \"yellow,cyan\"",
     "RUNNER (Windows)": "",
     "backend:win": "cd backend && .venv\\Scripts\\activate && uvicorn main:app --reload",
-    "dev:win": "concurrently \"npm run backend:win\" \"npm run frontend\" --kill-others --names \"BACKEND,FRONTEND\" --prefix-colors \"yellow,cyan\""
+    "dev:win": "concurrently \"npm run backend:win\" \"npx wait-on tcp:8000 && npm run frontend\" --kill-others --names \"BACKEND,FRONTEND\" --prefix-colors \"yellow,cyan\""
   },
   "repository": {
     "type": "git",
@@ -29,6 +27,10 @@
   },
   "homepage": "https://github.com/chefpenguino/kangaroo-terminal#readme",
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "tailwindcss": "^4.1.18"
+  },
+  "dependencies": {
+    "@tailwindcss/typography": "^0.5.19"
   }
 }
