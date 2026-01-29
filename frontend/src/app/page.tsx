@@ -35,30 +35,33 @@ async function DashboardContent() {
   const [stocks, globalMarkets] = await Promise.all([stocksData, marketsData]);
 
   return (
-      <DashboardClient 
-        initialStocks={stocks} 
-        initialGlobalMarkets={globalMarkets} 
-      />
+    <DashboardClient
+      initialStocks={stocks}
+      initialGlobalMarkets={globalMarkets}
+    />
   );
 }
 
 export default function Home() {
   return (
     <main>
-       <div className="flex justify-between items-end mb-4 px-1">
-            <div>
-                <h2 className="text-4xl font-instrument text-white">Dashboard</h2>
-                <p className="text-gray-500 text-sm mt-1">Real-time market intelligence</p> 
-            </div>
+      <div className="flex justify-between items-end mb-4 px-1">
+        <div>
+          <h2 className="text-4xl font-instrument text-white">Dashboard</h2>
+          <p className="text-gray-500 text-sm mt-1">Real-time market intelligence</p>
         </div>
-        
-        <Suspense fallback={
-          <div className="flex justify-center py-20">
-             <Loader2 className="animate-spin text-primary" size={32} />
-          </div>
-        }>
-            <DashboardContent />
-        </Suspense>
+      </div>
+
+      {/* barrier */}
+      <div className="h-px w-full bg-linear-to-r from-transparent via-primary/20 to-transparent mb-6 shadow-[0_0_10px_rgba(198,142,86,0.15)]"></div>
+
+      <Suspense fallback={
+        <div className="flex justify-center py-20">
+          <Loader2 className="animate-spin text-primary" size={32} />
+        </div>
+      }>
+        <DashboardContent />
+      </Suspense>
     </main>
   );
 }

@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, Loader2, X, BrainCircuit, Calculator, Star, ChevronDown, Layers, Plus, Search, Users, Briefcase, PieChart as PieIcon, Target, Info, Bell, FileText, Download, Eye, Calendar } from "lucide-react";
 import Link from "next/link";
 import AlertModal from "../../components/AlertModal";
-import { createChart, ColorType, CandlestickSeries, HistogramSeries, LineSeries } from 'lightweight-charts';
+import { createChart, ColorType, CandlestickSeries, HistogramSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts';
 import { Treemap, ResponsiveContainer, Tooltip as ReTooltip, PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, BarChart, Bar, CartesianGrid } from "recharts";
 import { toast } from "sonner";
 import { notFound } from "next/navigation";
@@ -415,6 +415,24 @@ export default function StockDetailClient({
     fetchHistory();
   }, [ticker, activeTf]);
 
+  // transactions state
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [refreshTransactions, setRefreshTransactions] = useState(0);
+
+  // fetch transactions
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      try {
+        const res = await fetch(`http://localhost:8000/stock/${ticker}/transactions`);
+        if (res.ok) {
+          const json = await res.json();
+          setTransactions(json);
+        }
+      } catch (e) { console.error(e); }
+    };
+    fetchTransactions();
+  }, [ticker, refreshTransactions]);
+
   // render chart 
   useEffect(() => {
     if (!data.length || !chartContainerRef.current) return;
@@ -457,6 +475,34 @@ export default function StockDetailClient({
       title: ticker.toUpperCase(),
     });
     mainSeries.setData(data);
+
+    // Trade Markers
+    if (transactions.length > 0) {
+      // convert transactions to markers
+      // timestamp needs to match chart data format.
+      // assuming chart data is YYYY-MM-DD string or unix.
+      // transactions have timestamp string "2023-01-01T10:00:00"
+
+      const markers: any[] = transactions.map(t => {
+        // format date to YYYY-MM-DD
+        const d = new Date(t.timestamp);
+        const dateStr = d.toISOString().split('T')[0];
+
+        const isBuy = t.type === 'BUY';
+        return {
+          time: dateStr,
+          position: isBuy ? 'belowBar' : 'aboveBar',
+          color: isBuy ? '#22c55e' : '#ef4444',
+          shape: isBuy ? 'arrowUp' : 'arrowDown',
+          text: `${t.type} @ $${Number(t.price).toFixed(2)}`
+        };
+      });
+
+      // sort markers by time
+      markers.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+      createSeriesMarkers(mainSeries, markers);
+    }
 
     // comparison series
     if (isComparing) {
@@ -523,7 +569,7 @@ export default function StockDetailClient({
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [data, comparisonData, indicators]);
+  }, [data, comparisonData, indicators, transactions]);
 
   const openArticle = async (url: string) => {
     if (!url) return;
@@ -920,7 +966,7 @@ export default function StockDetailClient({
                 ticker={ticker}
                 // get latest price from history data
                 currentPrice={data.length > 0 ? data[data.length - 1].close : 0}
-                onTrade={() => { /* placeholder */ }}
+                onTrade={() => setRefreshTransactions(prev => prev + 1)}
               />
             ) : (
               <>
@@ -1332,7 +1378,7 @@ export default function StockDetailClient({
 
               <div className="w-full h-80 mt-4">
                 {corporate?.dividends && corporate.dividends.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%" minHeight={300}>
+                  <ResponsiveContainer width="100%" height="100%" minHeight={300} minWidth={0}>
                     <BarChart data={corporate.dividends} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                       {/* gold gradient definition */}
                       <defs>
@@ -1426,7 +1472,7 @@ export default function StockDetailClient({
                   {corporate?.ownership ? (
                     <>
                       <div className="relative w-40 h-40 shrink-0">
-                        <ResponsiveContainer width="100%" height="100%" minHeight={160}>
+                        <ResponsiveContainer width="100%" height="100%" minHeight={160} minWidth={0}>
                           <PieChart>
                             <Pie
                               data={[

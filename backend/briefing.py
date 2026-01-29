@@ -55,7 +55,7 @@ def generate_briefing_content(data):
     Use a professional, insightful, yet slightly "hedge fund insider" tone.
     Do not be generic. specific insights > general observations.
     
-    REQUIRED SECTIONS (Output strictly in JSON format):
+    REQUIRED SECTIONS (Output strictly in JSON format): 
     
     1. "overnight_wrap": HTML content. Summary of US/Global lead-ins and what it means for the ASX open.
     2. "portfolio_impact": HTML content. specific comments on how global moves/news might hit their specific holdings. ONE sentence per holding is good.

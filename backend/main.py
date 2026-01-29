@@ -536,7 +536,6 @@ async def analyse_stock(ticker: str):
     gathers price, news & financials & sends to google gemini to generate a report
     """
     try:
-        # gather intelligence
         news = await asyncio.to_thread(get_stock_news, ticker) # googlenews scraper
         financials = await asyncio.to_thread(get_stock_financials, ticker) # yfinance fetcher
         info = await asyncio.to_thread(get_stock_info, ticker)
@@ -858,7 +857,7 @@ CACHE_TTL_MINUTES = 30
 @app.get("/macro/calendar")
 async def get_macro_calendar():
     """
-    Fetches economic calendar from ForexFactory XML feed with 30-min caching.
+    fetches economic calendar from ForexFactory XML feed with 30-min caching
     """
     global macro_cache
     
@@ -1001,8 +1000,7 @@ async def get_portfolio_analytics(db: Session = Depends(get_db)):
 @app.get("/portfolio/risk")
 async def get_portfolio_risk(db: Session = Depends(get_db)):
     """
-    Calculates Portfolio Beta and Correlation Matrix.
-    This is computationally expensive, so it might take a few seconds.
+    calculates beta & correlation matrix
     """
     try:
         holdings = db.query(models.Holding).all()
@@ -1016,21 +1014,20 @@ async def get_portfolio_risk(db: Session = Depends(get_db)):
         # add .AX suffix for aussie stocks (except the index)
         yf_tickers = [f"{t}.AX" if not t.startswith("^") else t for t in tickers]
         
-        # fetch 1y of history for all assets
+        # 1y of history for all assets
         data = yf.download(yf_tickers, period="1y", interval="1d", progress=False)['Close']
         
         if data.empty:
             return {"error": "Could not fetch data"}
 
-        # calculate daily returns (percentage change)
+        # daily returns (percentage change)
         returns = data.pct_change(fill_method=None).dropna()
         
-        # calculate correlation
         corr_matrix = returns.corr()
         
         # format correlation for frontend heatmap
         correlation_data = []
-        clean_tickers = [t.replace(".AX", "") for t in tickers] # Remove .AX for display
+        clean_tickers = [t.replace(".AX", "") for t in tickers] 
         
         for i, tick_x in enumerate(clean_tickers):
             # don't show index in correlation map
@@ -1079,7 +1076,7 @@ async def get_portfolio_risk(db: Session = Depends(get_db)):
             
             col = f"{h.ticker}.AX"
             # stock beta vs market
-            # covariance of stock vs market / varaince of market
+            # covariance of stock vs market / variance of market
             cov = returns[[col, "^AXJO"]].cov().iloc[0, 1]
             var = market_returns.var()
             beta = cov / var
@@ -1098,6 +1095,144 @@ async def get_portfolio_risk(db: Session = Depends(get_db)):
 
     except Exception as e:
         print(f"Risk analysis error: {e}")
+        return {"error": str(e)}
+
+@app.get("/portfolio/benchmark")
+async def get_portfolio_benchmark(db: Session = Depends(get_db)):
+    """
+    calculates synthetic historical performance of the current portfolio vs asx200 over the last year
+    """
+    try:
+        holdings = db.query(models.Holding).all()
+        if not holdings:
+            return {"history": [], "metrics": {}}
+
+        tickers = [h.ticker for h in holdings]
+        tickers.append("^AXJO") # benchmark
+        yf_tickers = [f"{t}.AX" if not t.startswith("^") else t for t in tickers]
+        
+        # 1y of daily close data
+        data = yf.download(yf_tickers, period="1y", interval="1d", progress=False)['Close']
+        if data.empty:
+            return {"error": "Could not fetch data"}
+
+        # single ticker case (yf returns Series instead of DF)
+        if len(yf_tickers) == 1:
+            data = data.to_frame()
+            if data.shape[1] == 1:
+                data.columns = [yf_tickers[0]]
+
+        # drop nan rows
+        data = data.dropna()
+        
+        if data.empty:
+             return {"error": "No data available after dropping NaNs"}
+
+        # calculate current weights
+        latest_prices = data.iloc[-1]
+        
+        holding_values = {}
+        total_value = 0.0
+        
+        for h in holdings:
+            sym = f"{h.ticker}.AX"
+            # handle dropped .AX from yf
+            price = 0.0
+            if sym in latest_prices:
+                price = latest_prices[sym]
+            elif h.ticker in latest_prices:
+                price = latest_prices[h.ticker]
+            
+            if price > 0:
+                val = h.shares * price
+                holding_values[sym] = val
+                total_value += val
+                
+        if total_value == 0:
+            return {"error": "Portfolio has no value (or tickers not found)"}
+
+        weights = {sym: val / total_value for sym, val in holding_values.items()}
+        
+        # calculate daily return
+        returns = data.pct_change(fill_method=None).dropna()
+        
+        # make synthetic return
+        portfolio_returns = pd.Series(0, index=returns.index)
+        
+        for sym, weight in weights.items():
+            # check which key exists 
+            key_to_use = None
+            if sym in returns.columns:
+                key_to_use = sym
+            elif sym.replace(".AX", "") in returns.columns:
+                key_to_use = sym.replace(".AX", "")
+            
+            if key_to_use:
+                portfolio_returns += returns[key_to_use] * weight
+                
+        bench_key = "^AXJO"
+        if bench_key not in returns.columns:
+            # .... or fallback? bruh
+            if "AXJO" in returns.columns: bench_key = "AXJO"
+            else: return {"error": "Benchmark data missing"}
+
+        benchmark_returns = returns[bench_key]
+
+        # build cumulative indices (starting at 100)
+        portfolio_curve = (1 + portfolio_returns).cumprod() * 100
+        benchmark_curve = (1 + benchmark_returns).cumprod() * 100
+                
+        # format for frontend list 
+        chart_data = []
+        for date, p_val in portfolio_curve.items():
+            b_val = benchmark_curve.loc[date]
+            
+            t = date.strftime('%Y-%m-%d')
+            
+            chart_data.append({
+                "time": t,
+                "portfolio": round(p_val, 2),
+                "benchmark": round(b_val, 2)
+            })
+        
+        # total return
+        total_return_port = (portfolio_curve.iloc[-1] / portfolio_curve.iloc[0]) - 1
+        total_return_bench = (benchmark_curve.iloc[-1] / benchmark_curve.iloc[0]) - 1
+        
+        # alpha (excess return)
+        alpha = total_return_port - total_return_bench
+        
+        # volatility (annualised standard deviation)
+        vol_port = portfolio_returns.std() * np.sqrt(252)
+        vol_bench = benchmark_returns.std() * np.sqrt(252)
+        
+        # sharpe ratio (assuming 3% risk free rate)
+        rf = 0.03
+        sharpe = (total_return_port - rf) / vol_port if vol_port > 0 else 0
+        
+        # beta
+        cov = portfolio_returns.cov(benchmark_returns)
+        var = benchmark_returns.var()
+        beta = cov / var if var > 0 else 1.0
+
+        metrics = {
+            "alpha": round(alpha * 100, 2), # percentage
+            "beta": round(beta, 2),
+            "sharpe": round(sharpe, 2),
+            "portfolio_return": round(total_return_port * 100, 2),
+            "benchmark_return": round(total_return_bench * 100, 2),
+            "volatility": round(vol_port * 100, 2)
+        }
+
+        return {
+            "history": chart_data,
+            "metrics": metrics
+        }
+
+    except Exception as e:
+        print(f"Benchmark error: {e}")
+        import traceback
+        traceback.print_exc()
         return {"error": str(e)}
 
 @app.get("/account")
@@ -1209,6 +1344,11 @@ async def get_transactions(db: Session = Depends(get_db)):
     """Get the last 20 trades for the status bar"""
     return db.query(models.TransactionHistory).order_by(models.TransactionHistory.timestamp.desc()).limit(20).all()
 
+@app.get("/stock/{ticker}/transactions")
+async def get_stock_transactions(ticker: str, db: Session = Depends(get_db)):
+    """Get all transactions for a specific ticker to plot on the chart"""
+    return db.query(models.TransactionHistory).filter(models.TransactionHistory.ticker == ticker.upper()).order_by(models.TransactionHistory.timestamp.asc()).all()
+
 @app.get("/global-markets")
 def get_global_markets():
     """
@@ -1238,7 +1378,6 @@ def get_global_markets():
         results = []
         
         # iterate through config to maintain order
-        # use list() to create a copy to avoid runtime errors during iteration
         for item in list(config):
             symbol = item["symbol"]
             try:
@@ -1452,9 +1591,7 @@ class CompareRequest(BaseModel):
 @app.post("/compare/ai")
 async def compare_ai_verdict(req: CompareRequest):
     """
-    1. Fetches fundamentals for both stocks.
-    2. Fetches recent news for both.
-    3. Asks Gemini to pick a winner based on value, growth, and sentiment.
+    fetches fundamentals & news for both stocks, asks gemini to pick a winner
     """
     try:
         # get data 

@@ -3,36 +3,39 @@ import { Loader2 } from "lucide-react";
 import PortfolioClient from "./PortfolioClient";
 
 async function getPortfolioData() {
-  const API_URL = "http://localhost:8000";
-  try {
-     const [portRes, accRes, analyticsRes, riskRes] = await Promise.all([
-        fetch(`${API_URL}/portfolio`, { cache: "no-store" }),
-        fetch(`${API_URL}/account`, { cache: "no-store" }),
-        fetch(`${API_URL}/portfolio/analytics`, { cache: "no-store" }),
-        fetch(`${API_URL}/portfolio/risk`, { cache: "no-store" })
-     ]);
+    const API_URL = "http://localhost:8000";
+    try {
+        const [portRes, accRes, analyticsRes, riskRes, benchmarkRes] = await Promise.all([
+            fetch(`${API_URL}/portfolio`, { cache: "no-store" }),
+            fetch(`${API_URL}/account`, { cache: "no-store" }),
+            fetch(`${API_URL}/portfolio/analytics`, { cache: "no-store" }),
+            fetch(`${API_URL}/portfolio/risk`, { cache: "no-store" }),
+            fetch(`${API_URL}/portfolio/benchmark`, { cache: "no-store" })
+        ]);
 
-     return {
-        holdings: await portRes.json(),
-        account: await accRes.json(),
-        analytics: await analyticsRes.json(),
-        risk: await riskRes.json()
-     };
-  } catch (e) {
-     console.error("Portfolio fetch failed", e);
-     return null;
-  }
+        return {
+            holdings: await portRes.json(),
+            account: await accRes.json(),
+            analytics: await analyticsRes.json(),
+            risk: await riskRes.json(),
+            benchmark: await benchmarkRes.json()
+        };
+    } catch (e) {
+        console.error("Portfolio fetch failed", e);
+        return null;
+    }
 }
 
 async function PortfolioContent() {
     const data = await getPortfolioData();
-    
+
     return (
-        <PortfolioClient 
+        <PortfolioClient
             initialHoldings={data?.holdings || []}
             initialAccount={data?.account || null}
             initialAnalytics={data?.analytics || []}
             initialRisk={data?.risk || null}
+            initialBenchmark={data?.benchmark || null}
         />
     );
 }

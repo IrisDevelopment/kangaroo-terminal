@@ -175,41 +175,50 @@ export default function DashboardClient({ initialStocks, initialGlobalMarkets }:
             }
         };
 
-        const interval = setInterval(fetchStocks, 1000) // refresh every 1s
+        const interval = setInterval(fetchStocks, 60000) // refresh every 1 minute
         return () => clearInterval(interval); // cleanup upon leaving page
     }, []);
 
     return (
         <div className="grid grid-cols-1 gap-8 animate-in fade-in duration-500 w-full overflow-x-hidden p-1">
             {/* global markets ticker */}
-            <div className="w-full overflow-x-auto pb-4 custom-scrollbar select-none">
-                <div className="flex gap-8 w-max px-1">
-                    {/* Group by Category */}
-                    {globalMarkets.length > 0 ? (
-                        ["Indices", "Macro", "Commodities", "Forex", "Crypto"].map(cat => {
-                            const items = globalMarkets.filter(m => m.category === cat);
-                            if (items.length === 0) return null;
+            <div className="w-full">
+                <h2 className="text-2xl font-instrument mb-4 text-white">Global Markets</h2>
 
-                            return (
-                                <div key={cat} className="flex flex-col gap-2">
-                                    {/* Category Label */}
-                                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide pl-1">
-                                        {cat}
-                                    </span>
+                <div className="overflow-x-auto pb-4 custom-scrollbar select-none">
+                    <div className="flex gap-8 w-max px-1">
+                        {/* group by category */}
+                        {globalMarkets.length > 0 ? (
+                            ["Indices", "Macro", "Commodities", "Forex", "Crypto"].map(cat => {
+                                const items = globalMarkets.filter(m => m.category === cat);
+                                if (items.length === 0) return null;
 
-                                    {/* Cards in this group */}
-                                    <div className="flex gap-4 p-1 bg-white/5 rounded-2xl border border-white/5">
-                                        {items.map((m) => (
-                                            <TickerCard key={m.symbol} item={m} />
-                                        ))}
+                                return (
+                                    <div key={cat} className="relative flex flex-col">
+                                        {/* category label */}
+                                        <div className="relative z-10 -mb-2 self-start">
+                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-2.5 py-0.5 bg-[#0a0a0a] border border-white/10 rounded-md">
+                                                {cat}
+                                            </span>
+                                        </div>
+
+                                        {/* container */}
+                                        <div className="flex gap-4 p-2 bg-white/2 rounded-lg border border-white/5">
+                                            {items.map((m) => (
+                                                <TickerCard key={m.symbol} item={m} />
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
-                            )
-                        })
-                    ) : (
-                        <div className="text-gray-500 text-sm">Loading markers...</div>
-                    )}
+                                )
+                            })
+                        ) : (
+                            <div className="text-gray-500 text-sm">Loading markets...</div>
+                        )}
+                    </div>
                 </div>
+
+                {/* barrier */}
+                <div className="h-px w-full bg-linear-to-r from-transparent via-primary/20 to-transparent mt-4 shadow-[0_0_10px_rgba(198,142,86,0.15)]"></div>
             </div>
 
             {/* radar */}
