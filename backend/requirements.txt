@@ -15,3 +15,6 @@ readability-lxml
 google.genai
 asyncio
 nest_asyncio
+browser-use
+openai
+langchain-openai

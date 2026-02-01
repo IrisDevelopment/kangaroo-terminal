@@ -23,11 +23,13 @@ class Stock(Base):
 
 class Account(Base):
     __tablename__ = "account"
+    
     id = Column(Integer, primary_key=True)
     balance = Column(Float, default=100000.0) # cash available to trade
 
 class Holding(Base):
     __tablename__ = "holdings"
+
     id = Column(Integer, primary_key=True, index=True)
     ticker = Column(String, index=True)
     shares = Column(Integer)
@@ -35,6 +37,7 @@ class Holding(Base):
 
 class TransactionHistory(Base):
     __tablename__ = "transactions"
+
     id = Column(Integer, primary_key=True, index=True)
     ticker = Column(String)
     type = Column(String) # "BUY" or "SELL"
@@ -44,12 +47,14 @@ class TransactionHistory(Base):
 
 class Alert(Base):
     __tablename__ = "alerts"
+    
     id = Column(Integer, primary_key=True, index=True)
     ticker = Column(String, index=True)          # "BHP"
     target_price = Column(Float)                 # 45.50
     condition = Column(String)                   # "ABOVE", "BELOW", or "REMINDER"
     status = Column(String, default="ACTIVE")    # "ACTIVE", "TRIGGERED"
     note = Column(String, nullable=True)         # "Dividend on 2026-02-15"
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 class FilingAnalysis(Base):
@@ -68,11 +73,26 @@ class FilingAnalysis(Base):
 
 class PendingOrder(Base):
     __tablename__ = "pending_orders"
+
     id = Column(Integer, primary_key=True, index=True)
     ticker = Column(String, index=True)          # "BHP"
     order_type = Column(String)                   # "LIMIT_BUY", "LIMIT_SELL", "STOP_LOSS"
     shares = Column(Integer)
     limit_price = Column(Float)
     status = Column(String, default="PENDING")    # "PENDING", "FILLED", "CANCELLED"
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     filled_at = Column(DateTime, nullable=True)
+
+class EventCache(Base):
+    __tablename__ = "event_cache"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True)
+    date = Column(String)  # YYYY-MM-DD
+    title = Column(String)
+    reason = Column(String)
+    source_url = Column(String, nullable=True)
+    price_change = Column(Float) # percentage
+    
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

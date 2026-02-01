@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
+import { useSidebar } from "@/context/SidebarContext";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Loader2, X, BrainCircuit, Calculator, Star, ChevronDown, Layers, Plus, Search, Users, Briefcase, PieChart as PieIcon, Target, Info, Bell, FileText, Download, Eye, Calendar, DollarSign } from "lucide-react";
+import { ArrowLeft, Loader2, X, BrainCircuit, Calculator, Star, ChevronDown, Layers, Plus, Search, Users, Briefcase, PieChart as PieIcon, Target, Info, Bell, FileText, Download, Eye, Calendar, DollarSign, Maximize2, Minimize2 } from "lucide-react";
 import Link from "next/link";
 import AlertModal from "../../components/AlertModal";
 import { createChart, ColorType, CandlestickSeries, HistogramSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts';
@@ -85,6 +86,23 @@ function processFinancials(data: any) {
 
   return { years, rows };
 }
+
+const formatMarkerDate = (time: any) => {
+  if (!time) return null;
+  if (typeof time === "string") {
+    if (time.includes("T")) return time.split("T")[0];
+    return time;
+  }
+  if (typeof time === "number") {
+    return new Date(time * 1000).toISOString().split("T")[0];
+  }
+  if (typeof time === "object" && "year" in time) {
+    const month = String(time.month).padStart(2, "0");
+    const day = String(time.day).padStart(2, "0");
+    return `${time.year}-${month}-${day}`;
+  }
+  return null;
+};
 
 // order ticket component
 const OrderTicket = ({ ticker, currentPrice, onTrade }: any) => {
@@ -303,6 +321,10 @@ export default function StockDetailClient({
 }: StockDetailProps) {
   // history state
   const [data, setData] = useState<any[]>(initialHistory);
+  const [events, setEvents] = useState<any[]>([]); // event flags for chart
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsStatus, setEventsStatus] = useState<string | null>(null);
+  const [isChartExpanded, setIsChartExpanded] = useState(false); // chart expand state
   const [refreshHistory, setRefreshHistory] = useState(0);
   const [loading, setLoading] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -328,6 +350,8 @@ export default function StockDetailClient({
   const [isWatched, setIsWatched] = useState(initialIsWatched);
   const [rightPanel, setRightPanel] = useState("info");
   const [institutional, setInstitutional] = useState<any>(initialInstitutional);
+  const { isCollapsed, setCollapsed } = useSidebar();
+  const sidebarPrevRef = useRef<boolean | null>(null);
 
   // cache constants
   const CACHE_DURATION = 30 * 60 * 1000;
@@ -515,21 +539,31 @@ export default function StockDetailClient({
   // transactions state
   const [transactions, setTransactions] = useState<any[]>([]);
   const [refreshTransactions, setRefreshTransactions] = useState(0);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+  const [lastTransactionsKey, setLastTransactionsKey] = useState<string | null>(null);
 
   // pending orders state
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
   const [refreshOrders, setRefreshOrders] = useState(0);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [lastOrdersKey, setLastOrdersKey] = useState<string | null>(null);
 
   // fetch transactions
   useEffect(() => {
     const fetchTransactions = async () => {
+      setTransactionsLoading(true);
       try {
         const res = await fetch(`http://localhost:8000/stock/${ticker}/transactions`);
         if (res.ok) {
           const json = await res.json();
-          setTransactions(json);
+          const nextKey = JSON.stringify(json.map((tx: any) => [tx.id, tx.timestamp, tx.price]));
+          if (nextKey !== lastTransactionsKey) {
+            setTransactions(json);
+            setLastTransactionsKey(nextKey);
+          }
         }
       } catch (e) { console.error(e); }
+      finally { setTransactionsLoading(false); }
     };
     fetchTransactions();
   }, [ticker, refreshTransactions]);
@@ -547,13 +581,19 @@ export default function StockDetailClient({
   // fetch pending orders
   useEffect(() => {
     const fetchPending = async () => {
+      setOrdersLoading(true);
       try {
         const res = await fetch(`http://localhost:8000/orders/pending/${ticker}`);
         if (res.ok) {
           const json = await res.json();
-          setPendingOrders(json);
+          const nextKey = JSON.stringify(json.map((order: any) => [order.id, order.limit_price, order.order_type]));
+          if (nextKey !== lastOrdersKey) {
+            setPendingOrders(json);
+            setLastOrdersKey(nextKey);
+          }
         }
       } catch (e) { console.error(e); }
+      finally { setOrdersLoading(false); }
     };
     fetchPending();
   }, [ticker, refreshOrders]);
@@ -563,19 +603,134 @@ export default function StockDetailClient({
     const poll = setInterval(() => {
       setRefreshTransactions(prev => prev + 1);
       setRefreshOrders(prev => prev + 1);
-    }, 5000);
+    }, 15000);
     return () => clearInterval(poll);
   }, []);
 
+  // fetch stock events
+  useEffect(() => {
+    const fetchEvents = async () => {
+      setEventsLoading(true);
+      try {
+        const res = await fetch(`http://localhost:8000/stock/${ticker}/events`);
+        if (res.ok) {
+           const json = await res.json();
+           setEvents(json);
+           const pendingCount = Array.isArray(json) ? json.filter((evt: any) => !evt.reason).length : 0;
+           if (pendingCount > 0) {
+             setEventsStatus(`Scanning ${pendingCount} event${pendingCount === 1 ? "" : "s"}...`);
+           } else {
+             setEventsStatus(null);
+           }
+         } else {
+           setEventsStatus("Event scan unavailable");
+        }
+      } catch (e) { console.error("error fetching events", e); }
+      finally {
+        setEventsLoading(false);
+      }
+    };
+    fetchEvents();
+  }, [ticker]);
+
+  const markerData = useMemo(() => {
+    if (!data.length) {
+      return { markers: [], legend: { buyCount: 0, sellCount: 0, eventCount: 0 }, lookup: new Map() };
+    }
+
+    const markers: any[] = [];
+    const lookup = new Map<string, { events: any[]; trades: any[] }>();
+    let buyCount = 0;
+    let sellCount = 0;
+    let eventCount = 0;
+
+    const ensureBucket = (dateStr: string) => {
+      if (!lookup.has(dateStr)) lookup.set(dateStr, { events: [], trades: [] });
+      return lookup.get(dateStr)!;
+    };
+
+    const transactionGroups: Record<string, { buys: any[]; sells: any[] }> = {};
+    if (transactions.length > 0) {
+      transactions.forEach((t) => {
+        const dateStr = formatMarkerDate(t.timestamp);
+        if (!dateStr) return;
+        if (!transactionGroups[dateStr]) transactionGroups[dateStr] = { buys: [], sells: [] };
+        if (t.type === "BUY") {
+          transactionGroups[dateStr].buys.push(t);
+          buyCount += 1;
+        } else {
+          transactionGroups[dateStr].sells.push(t);
+          sellCount += 1;
+        }
+        ensureBucket(dateStr).trades.push(t);
+      });
+    }
+
+    Object.entries(transactionGroups).forEach(([dateStr, bucket]) => {
+      if (bucket.buys.length > 0) {
+        markers.push({
+          time: dateStr,
+          position: "belowBar",
+          color: "#22c55e",
+          shape: "arrowUp",
+          size: Math.min(1.5, 0.9 + bucket.buys.length * 0.1)
+        });
+      }
+      if (bucket.sells.length > 0) {
+        markers.push({
+          time: dateStr,
+          position: "aboveBar",
+          color: "#ef4444",
+          shape: "arrowDown",
+          size: Math.min(1.5, 0.9 + bucket.sells.length * 0.1)
+        });
+      }
+    });
+
+    const eventGroups: Record<string, any[]> = {};
+    if (events && events.length > 0) {
+      events.forEach((e) => {
+        const eventDate = e.date || formatMarkerDate(e.timestamp);
+        if (!eventDate) return;
+        if (!eventGroups[eventDate]) eventGroups[eventDate] = [];
+        eventGroups[eventDate].push(e);
+        eventCount += 1;
+        ensureBucket(eventDate).events.push(e);
+      });
+    }
+
+    Object.entries(eventGroups).forEach(([dateStr, items]) => {
+      const resolvedCount = items.filter((e: any) => e.reason).length;
+      markers.push({
+        time: dateStr,
+        position: "aboveBar",
+        color: resolvedCount > 0 ? "#EAB308" : "#9CA3AF",
+        shape: "circle",
+        size: Math.min(1.6, 0.9 + items.length * 0.1)
+      });
+    });
+
+    markers.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+    return {
+      markers,
+      legend: { buyCount, sellCount, eventCount },
+      lookup
+    };
+  }, [data, transactions, events]);
+
   // render chart 
   useEffect(() => {
-    if (!data.length || !chartContainerRef.current) return;
+    const targetRef = chartContainerRef;
+    if (!data.length || !targetRef.current) return;
+
 
     // determine mode (price/percentage)
     const isComparing = comparisonData.length > 0;
 
     // create chart
-    const chart = createChart(chartContainerRef.current, {
+    const chartHeight = targetRef.current.clientHeight || 400;
+    const chart = createChart(targetRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: '#0F0B08' },
         textColor: '#EBE3DB',
@@ -584,8 +739,8 @@ export default function StockDetailClient({
         vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
         horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
       },
-      width: chartContainerRef.current.clientWidth,
-      height: 400,
+      width: targetRef.current.clientWidth,
+      height: chartHeight,
       rightPriceScale: {
         mode: isComparing ? 2 : 0, // 2 = Percentage, 0 = Normal
         scaleMargins: {
@@ -599,6 +754,13 @@ export default function StockDetailClient({
       },
     });
 
+    const tooltip = document.createElement("div");
+    tooltip.className = "min-w-[240px] max-w-[420px] bg-[#120d0a]/95 border border-white/10 rounded-xl p-3 shadow-[0_12px_24px_rgba(0,0,0,0.45)] text-gray-200 text-[11px] leading-snug backdrop-blur-md";
+    tooltip.style.display = "none";
+    tooltip.style.position = "absolute";
+    tooltip.style.zIndex = "20";
+    targetRef.current.appendChild(tooltip);
+
     // main series
     const mainSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#4E9F76',
@@ -610,29 +772,10 @@ export default function StockDetailClient({
     });
     mainSeries.setData(data);
 
-    if (transactions.length > 0) {
-      // convert transactions to markers
-
-      const markers: any[] = transactions.map(t => {
-        // format date to YYYY-MM-DD
-        const d = new Date(t.timestamp);
-        const dateStr = d.toISOString().split('T')[0];
-
-        const isBuy = t.type === 'BUY';
-        return {
-          time: dateStr,
-          position: isBuy ? 'belowBar' : 'aboveBar',
-          color: isBuy ? '#22c55e' : '#ef4444',
-          shape: isBuy ? 'arrowUp' : 'arrowDown',
-          text: `${t.type} @ $${Number(t.price).toFixed(2)}`
-        };
-      });
-
-      // sort markers by time
-      markers.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
-
-      createSeriesMarkers(mainSeries, markers);
+    if (markerData.markers.length > 0) {
+      createSeriesMarkers(mainSeries, markerData.markers);
     }
+
 
     // comparison series
     if (isComparing) {
@@ -704,17 +847,97 @@ export default function StockDetailClient({
     });
 
     const handleResize = () => {
-      if (chartContainerRef.current) {
-        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      if (targetRef.current) {
+        chart.applyOptions({ width: targetRef.current.clientWidth, height: targetRef.current.clientHeight || 400 });
       }
     };
     window.addEventListener('resize', handleResize);
 
+    const resizeObserver = new ResizeObserver(() => {
+      if (targetRef.current) {
+        chart.applyOptions({ width: targetRef.current.clientWidth, height: targetRef.current.clientHeight || 400 });
+      }
+    });
+    resizeObserver.observe(targetRef.current);
+
+    const handleCrosshairMove = (param: any) => {
+      if (!param || !param.time || !targetRef.current) {
+        tooltip.style.display = "none";
+        return;
+      }
+
+      const dateStr = formatMarkerDate(param.time);
+      if (!dateStr || !markerData.lookup.has(dateStr)) {
+        tooltip.style.display = "none";
+        return;
+      }
+
+      const bucket = markerData.lookup.get(dateStr)!;
+      if (!bucket.events.length && !bucket.trades.length) {
+        tooltip.style.display = "none";
+        return;
+      }
+
+      const eventsHtml = bucket.events.slice(0, 4).map((evt: any) => {
+        const title = evt.title ? String(evt.title) : "event";
+        const reason = evt.reason ? String(evt.reason) : "searching for a reason";
+        return `<div class="flex gap-1.5 items-start"><span class="w-1.5 h-1.5 rounded-full bg-yellow-500 mt-1.25 shrink-0"></span><span><strong class="text-slate-50 font-bold">${title}</strong> — ${reason}</span></div>`;
+      }).join("");
+
+      const tradesHtml = bucket.trades.slice(0, 6).map((trade: any) => {
+        const label = `${trade.type} ${trade.shares} @ $${Number(trade.price).toFixed(2)}`;
+        const cls = trade.type === "BUY" ? "text-green-400 bg-green-500/15" : "text-red-400 bg-red-500/15";
+        return `<div class="flex gap-1.5 items-start"><span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold ${cls}">${label}</span></div>`;
+      }).join("");
+
+      const moreCount = Math.max(0, (bucket.events.length - 4)) + Math.max(0, (bucket.trades.length - 6));
+      const moreHtml = moreCount > 0 ? `<div class="mt-1 text-[10px] text-slate-400/70">+${moreCount} more</div>` : "";
+
+      tooltip.innerHTML = `
+        <div class="font-bold text-[10px] uppercase tracking-wider text-primary/90 mb-2">${dateStr}</div>
+        ${eventsHtml ? `<div class="flex flex-col gap-1.5 mb-1.5 max-h-60 overflow-y-auto">${eventsHtml}</div>` : ""}
+        ${tradesHtml ? `<div class="flex flex-col gap-1.5 mb-1.5 max-h-60 overflow-y-auto">${tradesHtml}</div>` : ""}
+        ${moreHtml}
+      `;
+
+      tooltip.style.display = "block";
+      const left = Math.min(Math.max(param.point?.x ?? 0, 12), targetRef.current.clientWidth - 260);
+      const top = Math.min(Math.max(param.point?.y ?? 0, 12), targetRef.current.clientHeight - 160);
+      tooltip.style.left = `${left}px`;
+      tooltip.style.top = `${top}px`;
+    };
+
+    chart.subscribeCrosshairMove(handleCrosshairMove);
+
     return () => {
+      chart.unsubscribeCrosshairMove(handleCrosshairMove);
+      tooltip.remove();
+      resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [data, comparisonData, indicators, transactions, pendingOrders]);
+  }, [data, comparisonData, indicators, pendingOrders, markerData, isChartExpanded]);
+
+  const toggleChartExpand = () => {
+    const next = !isChartExpanded;
+    setIsChartExpanded(next);
+    
+    if (next) {
+      sidebarPrevRef.current = isCollapsed;
+      setCollapsed(true);
+    } else {
+      if (sidebarPrevRef.current !== null) {
+        setCollapsed(sidebarPrevRef.current);
+      }
+    }
+  };
+
+  useEffect(() => {
+    document.body.classList.toggle("chart-expanded", isChartExpanded);
+    return () => {
+      document.body.classList.remove("chart-expanded");
+    };
+  }, [isChartExpanded]);
 
   const openArticle = async (url: string) => {
     if (!url) return;
@@ -859,81 +1082,83 @@ export default function StockDetailClient({
         isOpen={isAlertModalOpen}
         onClose={() => setIsAlertModalOpen(false)}
       />
-      {/* back button */}
-      <Link href="/" className="inline-flex items-center gap-2 text-gray-500 hover:text-primary mb-6 transition-colors">
-        <ArrowLeft size={18} />
-        <span>Back to Dashboard</span>
-      </Link>
+      <div className={`transition-all duration-500 ease-out ${isChartExpanded ? "opacity-0 -translate-y-6 pointer-events-none max-h-0 overflow-hidden" : "opacity-100"}`}>
+        {/* back button */}
+        <Link href="/" className="inline-flex items-center gap-2 text-gray-500 hover:text-primary mb-6 transition-colors">
+          <ArrowLeft size={18} />
+          <span>Back to Dashboard</span>
+        </Link>
 
-      {/* header */}
-      <div className="flex justify-between items-start mb-8">
-        <div className="flex items-center gap-5">
-          {/* large logo */}
-          {!imageError ? (
-            <div className="relative shrink-0">
-              <img
-                src={`https://files.marketindex.com.au/xasx/96x96-png/${ticker.toLowerCase()}.png`}
-                alt={`${ticker} logo`}
-                className="w-16 h-16 rounded-full object-cover bg-white border-2 border-primary/20 shadow-[0_0_20px_rgba(198,142,86,0.15)]"
-                onError={() => setImageError(true)}
-              />
-            </div>
-          ) : (
-            // fallback (letter)
-            <div className="w-16 h-16 shrink-0 rounded-full flex items-center justify-center text-2xl font-bold bg-surface text-gray-500 border border-white/10 shadow-inner">
-              {ticker[0].toUpperCase()}
-            </div>
-          )}
+        {/* header */}
+        <div className="flex justify-between items-start mb-8">
+          <div className="flex items-center gap-5">
+            {/* large logo */}
+            {!imageError ? (
+              <div className="relative shrink-0">
+                <img
+                  src={`https://files.marketindex.com.au/xasx/96x96-png/${ticker.toLowerCase()}.png`}
+                  alt={`${ticker} logo`}
+                  className="w-16 h-16 rounded-full object-cover bg-white border-2 border-primary/20 shadow-[0_0_20px_rgba(198,142,86,0.15)]"
+                  onError={() => setImageError(true)}
+                />
+              </div>
+            ) : (
+              // fallback (letter)
+              <div className="w-16 h-16 shrink-0 rounded-full flex items-center justify-center text-2xl font-bold bg-surface text-gray-500 border border-white/10 shadow-inner">
+                {ticker[0].toUpperCase()}
+              </div>
+            )}
 
-          <div>
-            <h1 className="text-4xl font-bold text-white tracking-tight">{ticker.toUpperCase()}</h1>
-            <div className="flex items-center gap-3 mt-1">
-              <span className="text-gray-500">ASX Historical Data</span>
-              {companyInfo?.sector && (
-                <>
-                  <span className="text-gray-700">•</span>
-                  <span className="text-primary text-sm font-medium bg-primary/10 px-2 py-0.5 rounded">{companyInfo.sector}</span>
-                </>
-              )}
+            <div>
+              <h1 className="text-4xl font-bold text-white tracking-tight">{ticker.toUpperCase()}</h1>
+              <div className="flex items-center gap-3 mt-1">
+                <span className="text-gray-500">ASX Historical Data</span>
+                {companyInfo?.sector && (
+                  <>
+                    <span className="text-gray-700">•</span>
+                    <span className="text-primary text-sm font-medium bg-primary/10 px-2 py-0.5 rounded">{companyInfo.sector}</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-3">
-          {/* watch button */}
-          <button
-            onClick={toggleWatchlist}
-            className={`group flex items-center gap-2 px-4 py-2 rounded-xl border transition-all duration-300 ${isWatched
-              ? "bg-primary/10 border-primary/50 text-primary"
-              : "bg-surface border-white/10 text-gray-500 hover:border-white/30 hover:text-white"
-              }`}
-          >
-            <Star size={18} className={isWatched ? "fill-primary" : "fill-transparent group-hover:scale-110 transition-transform"} />
-            <span className="text-sm font-bold tracking-wide">
-              {isWatched ? "WATCHING" : "WATCH"}
-            </span>
-          </button>
+          <div className="flex items-center gap-3">
+            {/* watch button */}
+            <button
+              onClick={toggleWatchlist}
+              className={`group flex items-center gap-2 px-4 py-2 rounded-xl border transition-all duration-300 ${isWatched
+                ? "bg-primary/10 border-primary/50 text-primary"
+                : "bg-surface border-white/10 text-gray-500 hover:border-white/30 hover:text-white"
+                }`}
+            >
+              <Star size={18} className={isWatched ? "fill-primary" : "fill-transparent group-hover:scale-110 transition-transform"} />
+              <span className="text-sm font-bold tracking-wide">
+                {isWatched ? "WATCHING" : "WATCH"}
+              </span>
+            </button>
 
-          {/* alert button */}
-          <button
-            onClick={() => setIsAlertModalOpen(true)}
-            className="group flex items-center justify-center w-10 h-10 rounded-xl border border-white/10 bg-surface text-gray-500 hover:bg-white/5 hover:text-white hover:border-white/30 transition-all"
-          >
-            <Bell size={18} className="group-hover:scale-110 transition-transform" />
-          </button>
+            {/* alert button */}
+            <button
+              onClick={() => setIsAlertModalOpen(true)}
+              className="group flex items-center justify-center w-10 h-10 rounded-xl border border-white/10 bg-surface text-gray-500 hover:bg-white/5 hover:text-white hover:border-white/30 transition-all"
+            >
+              <Bell size={18} className="group-hover:scale-110 transition-transform" />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* grid layout; chart at the left & profile at tjhe right */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-125">
+      <div className={`grid grid-cols-1 ${isChartExpanded ? "lg:grid-cols-1" : "lg:grid-cols-3"} gap-6 min-h-125 transition-all duration-500 ease-out`}>
         {/* chart */}
-        <div className="lg:col-span-2 luxury-card p-4 rounded-xl relative flex flex-col">
+        <div className={`luxury-card p-4 rounded-xl relative flex flex-col transition-all duration-500 ease-out ${isChartExpanded ? "min-h-[86vh]" : "lg:col-span-2"}`}>
           {/* toolbar heading */}
           <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-2 relative z-20">
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">
-                Price Action <span className="text-primary">({activeTf.label})</span>
+                <span className="whitespace-nowrap">Price Action <span className="text-primary">({activeTf.label})</span></span>
               </h3>
 
               {/* indicator dropdown */}
@@ -1048,24 +1273,42 @@ export default function StockDetailClient({
             </div>
 
             {/* timeframe buttons */}
-            <div className="flex bg-background/50 border border-white/5 rounded-xl p-1 gap-1">
-              {timeframes.map((tf) => (
-                <button
-                  key={tf.label}
-                  onClick={() => setActiveTf(tf)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-300 ${ // remember prvious rounded-md
-                    activeTf.label === tf.label
-                      ? "luxury-toggle-active"
-                      : "text-gray-500 hover:text-primary hover:bg-white/5"
-                    }`}
-                >
-                  {tf.label}
-                </button>
-              ))}
+              <div className="flex items-center gap-3">
+              <div className="flex bg-background/50 border border-white/5 rounded-xl p-1 gap-1">
+                {timeframes.map((tf) => (
+                  <button
+                    key={tf.label}
+                    onClick={() => setActiveTf(tf)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-300 ${ // remember prvious rounded-md
+                      activeTf.label === tf.label
+                        ? "luxury-toggle-active"
+                        : "text-gray-500 hover:text-primary hover:bg-white/5"
+                      }`}
+                  >
+                    {tf.label}
+                  </button>
+                ))}
+              </div>
+              
+              <button
+                onClick={toggleChartExpand}
+                className="p-2 rounded-xl bg-background/50 border border-white/5 hover:bg-white/10 hover:text-white text-gray-400 transition-colors"
+                title={isChartExpanded ? "Minimize Chart" : "Maximize Chart"}
+              >
+                {isChartExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              </button>
             </div>
           </div>
 
-          <div className="flex-1 relative w-full h-full min-h-100">
+            <div className={`flex-1 relative w-full ${isChartExpanded ? "min-h-[86vh]" : "min-h-100"} flex flex-col gap-4`}>
+              {(eventsLoading || transactionsLoading || ordersLoading || eventsStatus) && (
+                <div className="absolute top-3 right-3 z-10 bg-[#15100d]/80 border border-white/10 rounded-xl px-3 py-2 flex items-center gap-2 text-[10px] text-gray-400">
+                  {(eventsLoading || transactionsLoading || ordersLoading) && (
+                    <Loader2 className="animate-spin text-primary" size={12} />
+                  )}
+                  <span>{eventsStatus || (eventsLoading ? "scanning events" : "syncing orders")}</span>
+                </div>
+              )}
             {loading && (
               <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
                 <Loader2 className="animate-spin text-primary" size={32} />
@@ -1078,14 +1321,35 @@ export default function StockDetailClient({
               {indicators.sma200 && <div className="text-[10px] font-mono text-[#FF6D00]">SMA 200</div>}
               {indicators.ema20 && <div className="text-[10px] font-mono text-[#00E5FF]">EMA 20</div>}
               {indicators.bollinger && <div className="text-[10px] font-mono text-[rgba(157,78,221,1)]">Bollinger Bands (20, 2)</div>}
+              {(markerData.legend.eventCount > 0 || markerData.legend.buyCount > 0 || markerData.legend.sellCount > 0) && (
+                <div className="flex items-center gap-2 text-[10px] text-gray-500 mt-1">
+                  {markerData.legend.eventCount > 0 && (
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-yellow-400"></span>
+                      {markerData.legend.eventCount} events
+                    </span>
+                  )}
+                  {markerData.legend.buyCount > 0 && (
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                      {markerData.legend.buyCount} buys
+                    </span>
+                  )}
+                  {markerData.legend.sellCount > 0 && (
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                      {markerData.legend.sellCount} sells
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* chart container */}
-            <div className="flex-1 relative min-h-100">
+            <div className={`flex-1 relative ${isChartExpanded ? "min-h-0" : "min-h-100"} rounded-xl overflow-hidden border border-white/5`}>
               <div ref={chartContainerRef} className="absolute inset-0 w-full h-full" />
             </div>
 
-            {/* pending orders list */}
             <PendingOrdersList
               orders={pendingOrders}
               onCancel={handleCancelOrder}
@@ -1094,7 +1358,7 @@ export default function StockDetailClient({
         </div>
 
         {/* right column: trade & info panel */}
-        <div className="luxury-card p-6 rounded-xl flex flex-col h-full">
+        <div className={`luxury-card p-6 rounded-xl flex flex-col h-full transition-all duration-500 ease-out ${isChartExpanded ? "opacity-0 pointer-events-none translate-x-6 max-h-0 overflow-hidden" : "opacity-100"}`}>
 
           {/* panel tabs */}
           <div className="flex gap-2 mb-6 p-1 bg-black/20 rounded-lg border border-white/5">
@@ -1163,7 +1427,7 @@ export default function StockDetailClient({
 
       {/* tabbed data */}
 
-      <div className="mt-8">
+      <div className={`transition-all duration-500 ease-out ${isChartExpanded ? "opacity-0 pointer-events-none max-h-0 overflow-hidden mt-0" : "mt-8"}`}>
         {/* tab buttons */}
         <div className="flex gap-6 border-b border-white/5 mb-6">
           <button

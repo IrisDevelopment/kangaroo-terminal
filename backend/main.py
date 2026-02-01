@@ -41,6 +41,8 @@ from stream_utils import set_stream_queue
 from stream_utils import set_stream_queue 
 import briefing 
 import filings 
+from why_engine import get_volatile_days, process_event_background 
+import rotation_engine
 
 load_dotenv()
 HACKCLUB_API_KEY = os.getenv("HACKCLUB_API_KEY")
@@ -205,6 +207,19 @@ def read_root():
 async def get_market_status():
     """returns whether the asx is currently open"""
     return {"is_open": is_market_open()}
+
+@app.get("/cycles")
+async def get_market_cycles():
+    """
+    get relative rotation graph (rrg) data for asx sectors
+    """
+    try:
+        data = rotation_engine.calculate_rrg()
+        return data
+    except Exception as e:
+        print(f"Error in /cycles: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/scraper-status")
 async def get_scraper_status_endpoint():
@@ -754,6 +769,53 @@ async def toggle_watchlist(ticker: str, db: Session = Depends(get_db)):
 def get_watchlist(db: Session = Depends(get_db)):
     """returns watched stocks"""
     return db.query(models.Stock).filter(models.Stock.is_watched == True).all()
+
+@app.get("/stock/{ticker}/events")
+async def get_stock_events(ticker: str, db: Session = Depends(get_db)):
+    """
+    triggers an agent search to find top 5 volatile events for the stock
+    """
+    try:
+        # get volatile days
+        events = await get_volatile_days(ticker)
+        
+        # check cache for existing reasons
+        results = []
+        
+        for event in events:
+            cached = db.query(models.EventCache).filter(
+                models.EventCache.ticker == ticker,
+                models.EventCache.date == event['date']
+            ).first()
+            
+            if cached:
+                results.append({
+                    "date": event['date'],
+                    "change": event['change'],
+                    "volume_ratio": event['volume_ratio'],
+                    "title": cached.title,
+                    "reason": cached.reason,
+                    "source": cached.source_url,
+                    "status": "found"
+                })
+            else:
+                # if missing trigger background search
+                asyncio.create_task(process_event_background(ticker, event))
+                
+                results.append({
+                    "date": event['date'],
+                    "change": event['change'],
+                    "volume_ratio": event['volume_ratio'],
+                    "title": f"Volatile Move ({event['change']:.1f}%)",
+                    "reason": "Analyzing market data...", 
+                    "source": "",
+                    "status": "searching"
+                })
+                
+        return results
+    except Exception as e:
+        print(f"Error fetching events: {e}")
+        return []
 
 @app.get("/calendar/upcoming")
 def get_upcoming_calendar(db: Session = Depends(get_db)):

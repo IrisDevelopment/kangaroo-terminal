@@ -16,8 +16,10 @@ import {
   Globe,
   Landmark,
   Swords,
-  Radar
+  Radar,
+  RotateCw
 } from "lucide-react";
+
 import { useSidebar } from "@/context/SidebarContext"
 
 // accepts label & icon
@@ -144,7 +146,9 @@ export default function Sidebar() {
         {!isCollapsed && <div className="px-6 mb-2 mt-6 text-xs font-bold text-gray-700 uppercase tracking-wider animate-in fade-in">Analysis</div>}
 
         <NavItem href="/hunter" label="Signal Hunter" icon={Radar} active={pathname === "/hunter"} layoutId="nav-highlight" collapsed={isCollapsed} />
+        <NavItem href="/cycles" label="Cycle Engine" icon={RotateCw} active={pathname === "/cycles"} layoutId="nav-highlight" collapsed={isCollapsed} />
         <NavItem href="/compare" label="Arena Mode" icon={Swords} active={pathname === "/compare"} layoutId="nav-highlight" collapsed={isCollapsed} />
+
         <NavItem href="/ai" label="AI Analyst" icon={BrainCircuit} active={pathname === "/ai"} layoutId="nav-highlight" collapsed={isCollapsed} />
       </nav>
 
