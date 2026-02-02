@@ -13,7 +13,7 @@ import {
   ReferenceArea,
   Label
 } from "recharts";
-import { Loader2, RefreshCw, Info } from "lucide-react";
+import { Loader2, RefreshCw, Info, ChevronDown, ChevronUp } from "lucide-react";
 
 const QUADRANTS = [
   {
@@ -69,6 +69,8 @@ export default function CyclesClient() {
   // set bounds for chart
   const [xDomain, setXDomain] = useState([96, 104]); 
   const [yDomain, setYDomain] = useState([-4, 4]);
+
+  const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
     fetchCycles();
@@ -358,54 +360,68 @@ export default function CyclesClient() {
       </div>
       
       {/* explanation */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
-        <div className="luxury-card p-6 rounded-xl border border-green-500/20 bg-green-500/5 hover:bg-green-500/10 transition-colors">
-            <h4 className="font-instrument text-xl font-bold text-green-500 mb-2">Leading</h4>
-            <div className="text-xs font-bold uppercase tracking-wider text-green-400/70 mb-3">Top Right Quadrant</div>
-            <p className="text-gray-400 text-sm leading-relaxed mb-4">
-                 Strong trend beating the market. <br/>
-                 <span className="font-mono text-xs opacity-70">RS &gt; 100, Momentum +ve</span>
-            </p>
-            <div className="flex items-center gap-2 text-green-400 text-xs font-bold bg-green-500/10 py-2 px-3 rounded-lg border border-green-500/20 w-fit">
-                <span>BUY / HOLD</span>
-            </div>
-        </div>
-        
-        <div className="luxury-card p-6 rounded-xl border border-yellow-500/20 bg-yellow-500/5 hover:bg-yellow-500/10 transition-colors">
-            <h4 className="font-instrument text-xl font-bold text-yellow-500 mb-2">Weakening</h4>
-            <div className="text-xs font-bold uppercase tracking-wider text-yellow-400/70 mb-3">Bottom Right Quadrant</div>
-            <p className="text-gray-400 text-sm leading-relaxed mb-4">
-                 Still strong but losing momentum. <br/>
-                 <span className="font-mono text-xs opacity-70">RS &gt; 100, Momentum -ve</span>
-            </p>
-            <div className="flex items-center gap-2 text-yellow-400 text-xs font-bold bg-yellow-500/10 py-2 px-3 rounded-lg border border-yellow-500/20 w-fit">
-                <span>TAKE PROFIT</span>
-            </div>
-        </div>
+      <div className="mt-8 border-t border-white/5 pt-6">
+        <button 
+          onClick={() => setShowGuide(!showGuide)}
+          className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mx-auto"
+        >
+          {showGuide ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          <span className="font-instrument tracking-wider uppercase">
+            {showGuide ? "Hide Guide" : "How to read the cycle"}
+          </span>
+        </button>
 
-        <div className="luxury-card p-6 rounded-xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 transition-colors">
-            <h4 className="font-instrument text-xl font-bold text-red-500 mb-2">Lagging</h4>
-            <div className="text-xs font-bold uppercase tracking-wider text-red-400/70 mb-3">Bottom Left Quadrant</div>
-            <p className="text-gray-400 text-sm leading-relaxed mb-4">
-                 Weak trend underperforming index. <br/>
-                 <span className="font-mono text-xs opacity-70">RS &lt; 100, Momentum -ve</span>
-            </p>
-            <div className="flex items-center gap-2 text-red-400 text-xs font-bold bg-red-500/10 py-2 px-3 rounded-lg border border-red-500/20 w-fit">
-                 <span>AVOID / SHORT</span>
+        {showGuide && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6 animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="luxury-card p-6 rounded-xl border border-green-500/20 bg-green-500/5 hover:bg-green-500/10 transition-colors">
+                <h4 className="font-instrument text-xl font-bold text-green-500 mb-2">Leading</h4>
+                <div className="text-xs font-bold uppercase tracking-wider text-green-400/70 mb-3">Top Right Quadrant</div>
+                <p className="text-gray-400 text-sm leading-relaxed mb-4">
+                     Strong trend beating the market. <br/>
+                     <span className="font-mono text-xs opacity-70">RS &gt; 100, Momentum +ve</span>
+                </p>
+                <div className="flex items-center gap-2 text-green-400 text-xs font-bold bg-green-500/10 py-2 px-3 rounded-lg border border-green-500/20 w-fit">
+                    <span>BUY / HOLD</span>
+                </div>
             </div>
-        </div>
-        
-         <div className="luxury-card p-6 rounded-xl border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 transition-colors">
-            <h4 className="font-instrument text-xl font-bold text-blue-500 mb-2">Improving</h4>
-            <div className="text-xs font-bold uppercase tracking-wider text-blue-400/70 mb-3">Top Left Quadrant</div>
-            <p className="text-gray-400 text-sm leading-relaxed mb-4">
-                 Momentum turning up, price cheap. <br/>
-                 <span className="font-mono text-xs opacity-70">RS &lt; 100, Momentum +ve</span>
-            </p>
-            <div className="flex items-center gap-2 text-blue-400 text-xs font-bold bg-blue-500/10 py-2 px-3 rounded-lg border border-blue-500/20 w-fit">
-                <span>WATCHLIST</span>
+            
+            <div className="luxury-card p-6 rounded-xl border border-yellow-500/20 bg-yellow-500/5 hover:bg-yellow-500/10 transition-colors">
+                <h4 className="font-instrument text-xl font-bold text-yellow-500 mb-2">Weakening</h4>
+                <div className="text-xs font-bold uppercase tracking-wider text-yellow-400/70 mb-3">Bottom Right Quadrant</div>
+                <p className="text-gray-400 text-sm leading-relaxed mb-4">
+                     Still strong but losing momentum. <br/>
+                     <span className="font-mono text-xs opacity-70">RS &gt; 100, Momentum -ve</span>
+                </p>
+                <div className="flex items-center gap-2 text-yellow-400 text-xs font-bold bg-yellow-500/10 py-2 px-3 rounded-lg border border-yellow-500/20 w-fit">
+                    <span>TAKE PROFIT</span>
+                </div>
             </div>
-        </div>
+
+            <div className="luxury-card p-6 rounded-xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 transition-colors">
+                <h4 className="font-instrument text-xl font-bold text-red-500 mb-2">Lagging</h4>
+                <div className="text-xs font-bold uppercase tracking-wider text-red-400/70 mb-3">Bottom Left Quadrant</div>
+                <p className="text-gray-400 text-sm leading-relaxed mb-4">
+                     Weak trend underperforming index. <br/>
+                     <span className="font-mono text-xs opacity-70">RS &lt; 100, Momentum -ve</span>
+                </p>
+                <div className="flex items-center gap-2 text-red-400 text-xs font-bold bg-red-500/10 py-2 px-3 rounded-lg border border-red-500/20 w-fit">
+                     <span>AVOID / SHORT</span>
+                </div>
+            </div>
+            
+             <div className="luxury-card p-6 rounded-xl border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 transition-colors">
+                <h4 className="font-instrument text-xl font-bold text-blue-500 mb-2">Improving</h4>
+                <div className="text-xs font-bold uppercase tracking-wider text-blue-400/70 mb-3">Top Left Quadrant</div>
+                <p className="text-gray-400 text-sm leading-relaxed mb-4">
+                     Momentum turning up, price cheap. <br/>
+                     <span className="font-mono text-xs opacity-70">RS &lt; 100, Momentum +ve</span>
+                </p>
+                <div className="flex items-center gap-2 text-blue-400 text-xs font-bold bg-blue-500/10 py-2 px-3 rounded-lg border border-blue-500/20 w-fit">
+                    <span>WATCHLIST</span>
+                </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

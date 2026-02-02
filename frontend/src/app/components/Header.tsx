@@ -9,8 +9,8 @@ export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
   
-  // hide header on cycles page
-  const isCyclesPage = pathname === "/cycles";
+  // hide header on cycles & galaxy page
+  const shouldHideHeader = pathname === "/cycles" || pathname === "/galaxy";
 
   // search state
   const [query, setQuery] = useState("");
@@ -81,7 +81,7 @@ export default function Header() {
 
   return (
     <AnimatePresence mode="wait">
-      {!isCyclesPage && (
+      {!shouldHideHeader && (
         <motion.header
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}

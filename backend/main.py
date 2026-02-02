@@ -20,7 +20,7 @@ import os
 import json
 from datetime import datetime
 from agent_tools import AVAILABLE_TOOLS, get_current_time
-from pydantic import BaseModel # Add this at top if missing
+from pydantic import BaseModel
 from dotenv import load_dotenv
 import logging
 
@@ -73,14 +73,11 @@ BRIEFING_CACHE = {
     "timestamp": 0
 }
 
-
-
-
 async def alert_monitor_task():
     """
     background loop that checks active alerts every 10 seconds
     """
-    print("🔔 [Alerts] Monitor starting...")
+    print("🔔 [Alerts] monitor starting...")
     while True:
         try:
             # create dedicated session
@@ -1936,10 +1933,8 @@ async def chat_agent_stream(req: ChatRequest):
                         if tool_name in AVAILABLE_TOOLS:
                             yield json.dumps({"type": "action", "content": f"Executing {tool_name}..."}) + "\n"
                             
-                            # run tool in a separate task so we can poll the queue
                             tool_task = asyncio.create_task(AVAILABLE_TOOLS[tool_name](tool_arg))
                             
-                            # while tool is running, check for browser updates
                             while not tool_task.done():
                                 try:
                                     msg = await asyncio.wait_for(stream_queue.get(), timeout=0.1)
@@ -1958,7 +1953,6 @@ async def chat_agent_stream(req: ChatRequest):
                             messages.append({"role": "assistant", "content": ai_text})
                             messages.append({"role": "user", "content": f"RESULT from {tool_name}: {tool_result}"})
                             
-                            # keep stream alive
                             yield json.dumps({"type": "keepalive"}) + "\n"
                         else:
                             messages.append({"role": "user", "content": f"SYSTEM ERROR: Tool '{tool_name}' not found."})
@@ -2084,6 +2078,129 @@ async def generate_briefing_endpoint(db: Session = Depends(get_db)):
             "action_items": f"<ul><li>Error: {str(e)}</li></ul>",
             "vibe": "System Error"
         }
+
+@app.get("/market-galaxy")
+async def get_market_galaxy(db: Session = Depends(get_db), threshold: float = 0.7):
+    """
+    generates graph data for the market galaxy visualisation
+    nodes = stocks 
+    links = correlations above threshold
+    """
+    try:
+        stocks = db.query(models.Stock).order_by(models.Stock.market_cap.desc()).limit(100).all()
+        if not stocks:
+            return {"nodes": [], "links": []}
+        
+        tickers = [s.ticker for s in stocks]
+        yf_tickers = [f"{t}.AX" for t in tickers]
+        
+        # fetch 6m daily data for calc
+        data = yf.download(yf_tickers, period="6mo", interval="1d", progress=False)['Close']
+        
+        if data.empty:
+            return {"nodes": [], "links": []}
+        
+        # calculate daily return
+        returns = data.pct_change(fill_method=None).dropna()
+        
+        corr_matrix = returns.corr()
+
+        
+        # helper to parse market cap strings
+        def parse_cap(cap_str):
+            if not cap_str: return 0.0
+            s = str(cap_str).upper().replace('$', '').replace(',', '').strip()
+            try:
+                if 'T' in s: return float(s.replace('T', '')) * 1_000_000_000_000
+                if 'B' in s: return float(s.replace('B', '')) * 1_000_000_000
+                if 'M' in s: return float(s.replace('M', '')) * 1_000_000
+                if 'K' in s: return float(s.replace('K', '')) * 1_000
+                return float(s)
+            except:
+                return 0.0
+        
+        # build nodes
+        nodes = []
+        ticker_to_idx = {}
+        
+        for idx, stock in enumerate(stocks):
+            col_name = f"{stock.ticker}.AX"
+            if col_name not in corr_matrix.columns:
+                continue
+            
+            ticker_to_idx[stock.ticker] = len(nodes)
+            
+            # parse market cap for sizing
+            mc_val = parse_cap(stock.market_cap)
+            
+            # get change %
+            change_pct = 0
+            try:
+                change_str = stock.change_percent or "0%"
+                change_pct = float(change_str.replace("%", "").replace("+", "").strip())
+            except:
+                change_pct = 0
+            
+            sector = stock.sector or "Other"
+            
+            nodes.append({
+                "id": stock.ticker,
+                "name": stock.name,
+                "sector": sector,
+                "marketCap": mc_val,
+                "price": stock.price,
+                "change": change_pct,
+            })
+        
+        links = []
+        processed = set()
+        
+        for i, stock_a in enumerate(stocks):
+            col_a = f"{stock_a.ticker}.AX"
+            if col_a not in corr_matrix.columns:
+                continue
+            if stock_a.ticker not in ticker_to_idx:
+                continue
+                
+            for j, stock_b in enumerate(stocks):
+                if i >= j:
+                    continue
+                
+                col_b = f"{stock_b.ticker}.AX"
+                if col_b not in corr_matrix.columns:
+                    continue
+                if stock_b.ticker not in ticker_to_idx:
+                    continue
+                
+                pair_key = tuple(sorted([stock_a.ticker, stock_b.ticker]))
+                if pair_key in processed:
+                    continue
+                processed.add(pair_key)
+                
+                try:
+                    corr = corr_matrix.loc[col_a, col_b]
+                    if pd.isna(corr):
+                        continue
+                    
+                    # only link if correlation > threshold
+                    if abs(corr) >= threshold:
+                        links.append({
+                            "source": stock_a.ticker,
+                            "target": stock_b.ticker,
+                            "correlation": round(corr, 3),
+                        })
+                except:
+                    continue
+        
+        return {
+            "nodes": nodes,
+            "links": links,
+            "threshold": threshold
+        }
+        
+    except Exception as e:
+        print(f"market galaxy error: {e}")
+        return {"nodes": [], "links": [], "error": str(e)}
 
 @app.get("/stock/{ticker}/filings")
 async def get_filings_endpoint(ticker: str):
