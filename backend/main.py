@@ -18,7 +18,7 @@ import requests
 from openai import OpenAI, AsyncOpenAI
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from agent_tools import AVAILABLE_TOOLS, get_current_time
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -33,6 +33,7 @@ class PollingFilter(logging.Filter):
         return not any(endpoint in msg for endpoint in noisy_endpoints)
 
 logging.getLogger("uvicorn.access").addFilter(PollingFilter())
+
 from newspaper import Article, Config  # type: ignore
 from readability import Document # type: ignore
 from contextlib import asynccontextmanager
@@ -43,6 +44,8 @@ import briefing
 import filings 
 from why_engine import get_volatile_days, process_event_background 
 import rotation_engine
+from story_engine import generate_watchlist_stories
+from news_scraper import scrape_google_news
 
 load_dotenv()
 HACKCLUB_API_KEY = os.getenv("HACKCLUB_API_KEY")
@@ -341,14 +344,53 @@ def get_stock_info(ticker: str):
 
 # google news rss feed reader
 @app.get("/stock/{ticker}/news")
-def get_stock_news(ticker: str):
+async def get_stock_news(ticker: str):
+    """
+    fetches news - playwright scraper with RSS fallback
+    """
+    news_items = []
+    
+    try:
+        articles = await scrape_google_news(ticker, max_results=20) # 2 pages (20 articles)
+        if articles:
+            for i, art in enumerate(articles):
+                # get domain for favicon
+                domain = ""
+                try:
+                    parsed = urllib.parse.urlparse(art['link'])
+                    domain = parsed.netloc
+                except:
+                    pass
+
+                news_items.append({
+                    "id": f"pw-{ticker}-{i}",
+                    "content": {
+                        "title": art['title'],
+                        "summary": art.get('snippet', 'scraped via kangaroo agent (playwright)'),
+                        "pubDate": art['time'],
+                        "clickThroughUrl": { "url": art['link'] },
+                        "provider": { 
+                            "displayName": art['source'],
+                            "url": f"https://{domain}" if domain else None
+                        },
+                        "method": "playwright" 
+                    }
+                })
+            
+            # sort by descending (latest first)
+            news_items.sort(key=lambda x: x['content']['pubDate'], reverse=True)
+            return news_items
+    except Exception as e:
+        print(f"⚠️ [News] playwright fallback for {ticker}: {e}")
+
+    # rss fallback 
     try:
         query = f"{ticker} ASX stock news"
         encoded_query = urllib.parse.quote(query)
         rss_url = f"https://news.google.com/rss/search?q={encoded_query}&ceid=AU:en&hl=en-AU&gl=AU"
         
-        feed = feedparser.parse(rss_url)
-        news_items = []
+        loop = asyncio.get_event_loop()
+        feed = await loop.run_in_executor(None, lambda: feedparser.parse(rss_url))
         
         for entry in feed.entries[:12]:
             # clean title (remove website name)
@@ -363,23 +405,34 @@ def get_stock_news(ticker: str):
             
             # get source url to pull favicon later
             source_url = entry.source.get('url', '')
+
+            # parse date to ISO for sorting
+            pub_date = entry.published
+            try:
+                if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                    dt = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+                    pub_date = dt.isoformat()
+            except:
+                pass
             
             news_items.append({
                 "id": entry.id,
                 "content": {
                     "title": title,
                     "summary": clean_summary,
-                    "pubDate": entry.published,
+                    "pubDate": pub_date,
                     "clickThroughUrl": {
                         "url": entry.link
                     },
                     "provider": {
                         "displayName": source_name,
                         "url": source_url
-                    }
+                    },
+                    "method": "rss"
                 }
             })
-            
+        
+        news_items.sort(key=lambda x: x['content']['pubDate'], reverse=True)
         return news_items
     except Exception as e:
         print(f"Error fetching Google News: {e}")
@@ -769,6 +822,13 @@ async def toggle_watchlist(ticker: str, db: Session = Depends(get_db)):
 def get_watchlist(db: Session = Depends(get_db)):
     """returns watched stocks"""
     return db.query(models.Stock).filter(models.Stock.is_watched == True).all()
+
+@app.get("/watchlist/stories")
+async def get_watchlist_stories_endpoint(db: Session = Depends(get_db)):
+    """
+    generates instagram-like stories for watched stocks with recent news
+    """
+    return await generate_watchlist_stories(db)
 
 @app.get("/stock/{ticker}/events")
 async def get_stock_events(ticker: str, db: Session = Depends(get_db)):
@@ -2024,7 +2084,7 @@ async def generate_briefing_endpoint(db: Session = Depends(get_db)):
                 if w.ticker not in news_tickers:
                     news_tickers.append(w.ticker)
                     
-        news_tasks = [asyncio.to_thread(get_stock_news, t) for t in news_tickers]
+        news_tasks = [get_stock_news(t) for t in news_tickers]
         # gather news + global markets
         results = await asyncio.gather(global_markets_task, *news_tasks)
         global_markets = results[0]

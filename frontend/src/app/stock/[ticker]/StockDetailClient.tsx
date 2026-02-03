@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useSidebar } from "@/context/SidebarContext";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Loader2, X, BrainCircuit, Calculator, Star, ChevronDown, Layers, Plus, Search, Users, Briefcase, PieChart as PieIcon, Target, Info, Bell, FileText, Download, Eye, Calendar, DollarSign, Maximize2, Minimize2 } from "lucide-react";
+import { ArrowLeft, Loader2, X, BrainCircuit, Calculator, Star, ChevronDown, Layers, Plus, Search, Users, Briefcase, PieChart as PieIcon, Target, Info, Bell, FileText, Download, Eye, Calendar, DollarSign, Maximize2, Minimize2, Globe, Rss } from "lucide-react";
 import Link from "next/link";
 import AlertModal from "../../components/AlertModal";
 import { createChart, ColorType, CandlestickSeries, HistogramSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts';
@@ -348,6 +348,30 @@ export default function StockDetailClient({
   const [discountRate, setDiscountRate] = useState(10); // 10% discount
   const [terminalMultiple, setTerminalMultiple] = useState(10); // 10x exit multiple
   const [isWatched, setIsWatched] = useState(initialIsWatched);
+
+  // notify about news scraper
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (news && news.length > 0) {
+        const isPlaywright = news.some((n: any) => n.content?.method === 'playwright');
+        const isRss = news.some((n: any) => n.content?.method === 'rss');
+        
+        if (isPlaywright) {
+           toast.success("Kangaroo Agent Active", {
+               description: `Found ${news.length} articles via Playwright scraper`,
+               icon: <Globe size={16} className="text-secondary" />
+           });
+        } else if (isRss) {
+            toast.info("News Fallback", {
+                description: "Playwright scraper failed. Using RSS feed.",
+                icon: <Rss size={16} className="text-orange-400" />
+            });
+        }
+      }
+    }, 1000);
+    return () => clearTimeout(t);
+  }, []); 
+
   const [rightPanel, setRightPanel] = useState("info");
   const [institutional, setInstitutional] = useState<any>(initialInstitutional);
   const { isCollapsed, setCollapsed } = useSidebar();

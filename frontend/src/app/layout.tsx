@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Instrument_Serif } from "next/font/google";
+import { Inter, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import Sidebar from "./components/Sidebar";
 import { Search } from "lucide-react"; // icons
@@ -20,6 +20,11 @@ const instrumentSerif = Instrument_Serif({
     variable: "--font-instrument",
 });
 
+const jetbrainsMono = JetBrains_Mono({
+    subsets: ["latin"],
+    variable: "--font-mono",
+});
+
 export const metadata: Metadata = {
     title: "Kangaroo Terminal | ASX Intelligence",
     description: "Advanced financial analytics for the Aussie market.",
@@ -35,7 +40,7 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en">
-            <body className={`${inter.variable} ${instrumentSerif.variable} font-sans antialiased`}>
+            <body className={`${inter.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
                 <SidebarProvider>
                     <div className="flex min-h-screen bg-background text-text">
                         <Sidebar />

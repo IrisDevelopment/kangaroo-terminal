@@ -248,7 +248,7 @@ export default function GalaxyClient() {
           <h1 className="mb-1 font-instrument text-4xl tracking-tight bg-linear-to-br via-stone-200 bg-clip-text text-transparent drop-shadow-[0_1.5px_1.5px_rgba(0,0,0,0.5)] whitespace-nowrap overflow-hidden">
             Market Galaxy
           </h1>
-          <p className="text-gray-400 text-sm">Correlation network of ASX stocks. Drag, zoom, and explore.</p>
+          <p className="text-gray-400 text-sm">Correlation network of ASX stocks</p>
         </div>
 
         {/* controls */}
@@ -470,7 +470,7 @@ export default function GalaxyClient() {
             <div className="luxury-card p-6 rounded-xl border border-white/10 hover:border-white/20 transition-colors bg-white/5">
               <h4 className="font-instrument text-xl font-bold text-white mb-2">Clusters</h4>
               <p className="text-gray-300 text-sm leading-relaxed">
-                A High correlation indicates stocks that react similarly to market events. Closely knit groups imply shared sector risk or common macro drivers.
+                A High correlation indicates stocks that react similarly to market events. Closely knit groups imply there's shared sector risk or common macroeconomic drivers.
               </p>
             </div>
 

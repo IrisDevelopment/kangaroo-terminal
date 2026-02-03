@@ -96,3 +96,12 @@ class EventCache(Base):
     price_change = Column(Float) # percentage
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+class StoryCache(Base):
+    __tablename__ = "story_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True)
+    content_json = Column(Text) 
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime)
