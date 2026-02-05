@@ -5,8 +5,10 @@ import Sidebar from "./components/Sidebar";
 import { Search } from "lucide-react"; // icons
 import Header from "./components/Header";
 import { SidebarProvider } from "@/context/SidebarContext";
+import { RooProvider } from "@/context/RooContext";
 import PageWrapper from "@/app/components/PageWrapper"
 import StatusBar from "@/app/components/StatusBar";
+import Roo from "./components/Roo";
 import { Toaster } from "sonner";
 
 const inter = Inter({
@@ -42,32 +44,35 @@ export default function RootLayout({
         <html lang="en">
             <body className={`${inter.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
                 <SidebarProvider>
-                    <div className="flex min-h-screen bg-background text-text">
-                        <Sidebar />
-                        <PageWrapper>
-                            <Header />
-                            <div className="pb-12">
-                                {children}
-                            </div>
-                            <StatusBar />
-                        </PageWrapper>
-                    </div>
-                    <Toaster
-                        position="bottom-right"
-                        theme="dark"
-                        toastOptions={{
-                            style: {
-                                background: '#0F0B08',
-                                border: '1px solid rgba(198, 142, 86, 0.4)',
-                                color: '#EBE3DB',
-                                boxShadow: '0 0 25px rgba(198, 142, 86, 0.15), 0 4px 10px rgba(0,0,0,0.5)',
-                                borderRadius: '12px',
-                                padding: '16px',
-                                fontSize: '13px'
-                            },
-                            className: 'font-sans'
-                        }}
-                    />
+                    <RooProvider>
+                        <div className="flex min-h-screen bg-background text-text">
+                            <Sidebar />
+                            <PageWrapper>
+                                <Header />
+                                <div className="pb-12">
+                                    {children}
+                                </div>
+                                <StatusBar />
+                            </PageWrapper>
+                        </div>
+                        <Roo />
+                        <Toaster
+                            position="bottom-right"
+                            theme="dark"
+                            toastOptions={{
+                                style: {
+                                    background: '#0F0B08',
+                                    border: '1px solid rgba(198, 142, 86, 0.4)',
+                                    color: '#EBE3DB',
+                                    boxShadow: '0 0 25px rgba(198, 142, 86, 0.15), 0 4px 10px rgba(0,0,0,0.5)',
+                                    borderRadius: '12px',
+                                    padding: '16px',
+                                    fontSize: '13px'
+                                },
+                                className: 'font-sans'
+                            }}
+                        />
+                    </RooProvider>
                 </SidebarProvider>
             </body>
         </html>

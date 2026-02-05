@@ -45,9 +45,13 @@ class ASXScraper:
             
             show_all_btn = self.page.locator("a.show-more-rows, a.btn:has-text('Show All Companies'), button.control-company-display") # hit the show all button
             if await show_all_btn.count() > 0:
-                await show_all_btn.first.click()
-                print("[🦘] table expanded to 200 rows")
-                await asyncio.sleep(2) # brief wait for expansion
+                try:
+                    await show_all_btn.first.scroll_into_view_if_needed()
+                    await show_all_btn.first.click(force=True, timeout=5000)
+                    print("[🦘] table expanded to 200 rows")
+                    await asyncio.sleep(2) # brief wait for expansion
+                except Exception as e:
+                    print(f"[🦘] failed to click expand button: {e}")
         except Exception as e:
             print(f"[🦘] couldn't expand table: {e}")
 
@@ -67,12 +71,12 @@ class ASXScraper:
                     if (cells.length >= 8) {
                         const codeCell = cells[1];
                         const code = codeCell.querySelector('a')?.textContent?.trim() || codeCell.textContent?.trim() || '';
-                        let company = cells[2]..trim();
+                        let company = cells[2]?.textContent?.trim() || '';
                         
                         // avoid (e.g. "BHPBHP Group")
                         if (code && company.startsWith(code) && company.length > code.length) {
                             company = company.substring(code.length).trim();
-                        }textContent
+                        }
                         
                         // clean price strings ("$10.50" -> 10.50)
                         const getVal = (i) => cells[i]?.textContent?.trim() || '0';

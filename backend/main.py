@@ -2038,6 +2038,76 @@ class ChatRequest(BaseModel):
     message: str
     history: list = [] # context [?]
 
+class RooChatRequest(BaseModel):
+    message: str
+    page: str
+
+@app.post("/ai/roo-chat")
+async def roo_chat(req: RooChatRequest):
+    """
+    chat function for the floating mascot, with context of the current page & website structure to answer basic qns
+    """
+    
+    # context for each page
+    site_map = {
+        "/": "Dashboard - The command center, which displays a live (realtime, scraped from www.marketindex.com.au) status of Global Markets (indices like SPX, ASX200) and the main ASX stock feed",
+        "/compare": "Compare Arena - A tool which allows you to enter two tickers to see them fight on charts (Radar/Area) and fundamental metrics",
+        "/portfolio": "Portfolio - Tracks your personal holdings, total account value, risk metrics, and performance against the benchmark.",
+        "/hunter": "Signal Hunter - A scanner that identifies specific trade setups like 'Whale Moves', 'Breakouts', and 'Dip Buys'",
+        "/screener": "Screener - A tool that shows top Gainers/Losers and a Sector Performance heatmap (inspired by tradingview heatmap) to see what's hot",
+        "/watchlist": "Watchlist - Your personal tracking list. Shows live prices and changes for your specific stocks",
+        "/cycles": "Cycle Engine - A macroeconomic strategy tool which visualizes the Economic clock and sector rotation phases (Early/Mid/Late/Recession)",
+        "/galaxy": "Galaxy View - A visual universe of the stock market with a zoomable force graph chart (inspired by the one in the obsidian app) grouping every stock by sector",
+        "/rv": "Relative Value - Valuation scatter plot (e.g., P/E vs Growth) which finds cheap stocks (undervalued) vs expensive ones (overvalued) in each sector",
+        "/briefing": "Morning Briefing - Your daily audio/text executive summary of overnight news and what to expect today",
+        "/simulation": "Simulation - 'strategy sandbox' which finds strategies in the market and allows you to backtest trading strategies against historical data without using real money",
+        "/ai": "AI Analyst (Deep Dive) - the heavy duty research agent which has a visible web browser, Todo list, and uses gemini to produce output for eg writing a full investment report",
+        "/stock/": "Stock Detail - the 'deep data' page for a specific company.shows charts, financials, news, valuation, and institutional ownership."
+    }
+
+    current_page_info = site_map.get(req.page, "Unknown Page")
+    market_status = "OPEN" if is_market_open() else "CLOSED"
+    
+    system_prompt = f"""
+    You are Roo, the friendly and energetic mascot of the Kangaroo Terminal financial platform.
+    
+    CONTEXT:
+    - Current Page: {req.page} ({current_page_info})
+    - Market Status: {market_status}
+    - User Query: "{req.message}"
+    
+    YOUR ROLE:
+    - You are a helpful guide.
+    - You answer questions about the website features and navigation.
+    - You can explain financial concepts briefly.
+    - You are optimistic and use occasional kangaroo puns if appropriate (don't overdo it).
+    - Keep responses SHORT and CONCISE (under 3 sentences is best).
+    - Talk in lowercases and a casual manner, as if you're texting a good friend
+    - Do not use markdown or html in your responses, just plain text
+    - Do NOT try to be a full financial analyst. If the user asks for deep analysis, tell them to visit the AI page.
+    
+    WEBSITE MAP for navigation help:
+    {json.dumps(site_map, indent=2)}
+    
+    Answer the user's question now.
+    """
+
+    try:
+        response = await async_client.chat.completions.create(
+            model="google/gemini-3-flash-preview", 
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": req.message}
+            ],
+            max_tokens=4096
+        )
+        
+        return {"response": response.choices[0].message.content}
+    except Exception as e:
+        print(f"Roo chat error: {e}")
+        return {"response": "squeak! i'm having trouble thinking right now, check back later"}
+
+
 # agentic chat
 @app.post("/ai/agent-stream")
 async def chat_agent_stream(req: ChatRequest):
