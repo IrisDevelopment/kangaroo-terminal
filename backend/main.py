@@ -56,6 +56,9 @@ if not HACKCLUB_API_KEY:
 DISPLAY_MODE = os.getenv("DISPLAY_MODE", "false").lower() == "true"
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 
+if "*" in CORS_ORIGINS:
+    CORS_ORIGINS = ["*"]
+
 if DISPLAY_MODE:
     from display_mode import get_or_create_session, session_execute_trade
     from price_simulator import run_price_simulator
