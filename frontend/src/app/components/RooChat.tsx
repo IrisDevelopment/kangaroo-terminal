@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -31,10 +32,11 @@ export default function RooChat({ position, rooWidth, rooHeight, onClose }: RooC
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const chatRef = useRef<HTMLDivElement>(null);
 
   /* chat bubble dimensions */
-  const chatWidth = 320;
-  const chatHeight = 400;
+  const chatWidth = Math.min(320, window.innerWidth - 40);
+  const chatHeight = Math.min(400, window.innerHeight - 160);
   const padding = 16;
 
   /* calculate position, prefer side */
@@ -71,6 +73,18 @@ export default function RooChat({ position, rooWidth, rooHeight, onClose }: RooC
     };
   }, []);
 
+  // close on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (chatRef.current && !chatRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -84,7 +98,7 @@ export default function RooChat({ position, rooWidth, rooHeight, onClose }: RooC
     try {
       abortControllerRef.current = new AbortController();
       
-      const response = await fetch('http://localhost:8000/ai/roo-chat', {
+      const response = await apiFetch(`${API_URL}/ai/roo-chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -120,6 +134,7 @@ export default function RooChat({ position, rooWidth, rooHeight, onClose }: RooC
 
   return (
     <motion.div
+      ref={chatRef}
       className="roo-chat"
       style={{
         position: 'fixed',

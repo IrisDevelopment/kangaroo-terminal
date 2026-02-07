@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { RooPosition } from '@/context/RooContext';
 
@@ -12,6 +12,18 @@ interface RooSpeechBubbleProps {
 }
 
 export default function RooSpeechBubble({ content, position, rooWidth, rooHeight }: RooSpeechBubbleProps) {
+  const [isLight, setIsLight] = useState(false); // check fi light theme is active
+  
+  useEffect(() => {
+    const checkTheme = () => {
+      setIsLight(document.documentElement.classList.contains('theme-light'));
+    };
+    checkTheme();
+    const observer = new MutationObserver(checkTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
   /* calculate bubble position */
   const bubbleWidth = 240;
   const bubbleMinHeight = 60;
@@ -37,8 +49,9 @@ export default function RooSpeechBubble({ content, position, rooWidth, rooHeight
 
   const isOnRight = position.x < bubbleX;
   
-  const borderColor = "rgba(198, 142, 86, 0.6)";
-  const fillColor = "#1e1612"; 
+  /* theme-aware colors */
+  const borderColor = isLight ? "rgba(139, 90, 43, 0.5)" : "rgba(198, 142, 86, 0.6)";
+  const fillColor = isLight ? "#F5F0EB" : "#1e1612"; 
 
   return (
     <motion.div
@@ -57,7 +70,7 @@ export default function RooSpeechBubble({ content, position, rooWidth, rooHeight
     >
       <div className="relative">
         {/* bubble content */}
-        <div className="roo-bubble-content relative z-10 bg-[#1e1612]">
+        <div className="roo-bubble-content relative z-10">
           <p className="roo-bubble-text">{content}</p>
         </div>
 

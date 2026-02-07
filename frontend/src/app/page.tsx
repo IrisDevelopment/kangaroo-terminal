@@ -1,13 +1,14 @@
 import { Suspense } from "react";
 import DashboardClient from "./components/DashboardClient";
 import { Loader2 } from "lucide-react";
+import { API_URL } from "@/lib/api";
 
 // force dynamic rendering
 export const dynamic = "force-dynamic";
 
 async function getStocks() {
   try {
-    const res = await fetch("http://localhost:8000/stocks", { cache: "no-store" });
+    const res = await fetch(`${API_URL}/stocks`, { cache: "no-store" });
     if (!res.ok) return [];
     return res.json();
   } catch (error) {
@@ -18,7 +19,7 @@ async function getStocks() {
 
 async function getGlobalMarkets() {
   try {
-    const res = await fetch("http://localhost:8000/global-markets", { cache: "no-store" });
+    const res = await fetch(`${API_URL}/global-markets`, { cache: "no-store" });
     if (!res.ok) return [];
     return res.json();
   } catch (error) {
@@ -27,17 +28,30 @@ async function getGlobalMarkets() {
   }
 }
 
+async function getSparklines() {
+  try {
+    const res = await fetch(`${API_URL}/stocks/sparklines`, { cache: "no-store" });
+    if (!res.ok) return {};
+    return res.json();
+  } catch (error) {
+    console.error("Failed to fetch sparklines", error);
+    return {};
+  }
+}
+
 async function DashboardContent() {
   // parallel fetching
   const stocksData = getStocks();
   const marketsData = getGlobalMarkets();
+  const sparklinesData = getSparklines();
 
-  const [stocks, globalMarkets] = await Promise.all([stocksData, marketsData]);
+  const [stocks, globalMarkets, sparklines] = await Promise.all([stocksData, marketsData, sparklinesData]);
 
   return (
     <DashboardClient
       initialStocks={stocks}
       initialGlobalMarkets={globalMarkets}
+      initialSparklines={sparklines}
     />
   );
 }

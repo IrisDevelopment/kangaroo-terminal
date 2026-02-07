@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { useRoo, SPRITE_CONFIG, RooAnimation, Ledge, RooPosition } from '@/context/RooContext';
 import { useSidebar } from '@/context/SidebarContext';
+import { useSettings } from '@/context/SettingsContext';
 import RooSpeechBubble from './RooSpeechBubble';
 import RooChat from './RooChat';
 
@@ -69,7 +70,8 @@ export default function Roo() {
     setIsMoving,
   } = useRoo();
 
-  const { isCollapsed: sidebarCollapsed } = useSidebar();
+  const { isCollapsed: sidebarCollapsed, isMobile } = useSidebar();
+  const { settings } = useSettings();
   const pathname = usePathname();
 
   const [currentFrame, setCurrentFrame] = useState(0);
@@ -97,7 +99,7 @@ export default function Roo() {
   /* scan for valid ledges in dom */
   const scanLedges = useCallback(() => {
     const found: Ledge[] = [];
-    const sidebarWidth = sidebarCollapsed ? 80 : 256;
+    const sidebarWidth = isMobile ? 0 : sidebarCollapsed ? 80 : 256;
     const statusBarHeight = 48;
     const headerHeight = 64;
 
@@ -218,7 +220,7 @@ export default function Roo() {
 
   /* stay within viewport */
   const clampPosition = useCallback((pos: RooPosition): RooPosition => {
-    const sidebarWidth = sidebarCollapsed ? 80 : 256;
+    const sidebarWidth = isMobile ? 0 : sidebarCollapsed ? 80 : 256;
     const statusBarHeight = 48;
     const headerHeight = 64;
 
@@ -435,13 +437,18 @@ export default function Roo() {
     const initTimeout = setTimeout(() => {
       handleUpdate();
       setIsInitialized(true);
-    }, 500);
+    }, 300);
+
+    const lateTimeout = setTimeout(handleUpdate, 1000);
+    const veryLateTimeout = setTimeout(handleUpdate, 2000);
 
     window.addEventListener('scroll', handleScroll, true);
     window.addEventListener('resize', handleUpdate);
 
     return () => {
       clearTimeout(initTimeout);
+      clearTimeout(lateTimeout);
+      clearTimeout(veryLateTimeout);
       clearTimeout(scrollTimeout);
       window.removeEventListener('scroll', handleScroll, true);
       window.removeEventListener('resize', handleUpdate);
@@ -531,7 +538,12 @@ export default function Roo() {
 
       /* if no movement then click */
       if (dx < 5 && dy < 5 && timeDiff < 200) {
-        openChat();
+        // toggle chat on click
+        if (isChatOpen) {
+          closeChat();
+        } else {
+          openChat();
+        }
       } else {
         setIsSettled(false);
         const currentPos = lastPositionRef.current;
@@ -605,7 +617,7 @@ export default function Roo() {
 
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd);
-  }, [startDrag, endDrag, setAnimation, setPosition, clampPosition, openChat, findNearestLedge, getLedgeTargetPosition, setTargetPosition, setCurrentLedge]);
+  }, [startDrag, endDrag, setAnimation, setPosition, clampPosition, openChat, closeChat, isChatOpen, findNearestLedge, getLedgeTargetPosition, setTargetPosition, setCurrentLedge]);
 
   const currentSpriteIndex = spriteConfig.sprites[currentFrame];
   const spritePath = useMemo(() => 
@@ -614,6 +626,12 @@ export default function Roo() {
   );
 
   if (!isInitialized) return null;
+
+  /* hide roo on small mobile screens */
+  if (isMobile) return null;
+
+  /* hide roo if disabled in settings */
+  if (!settings.rooEnabled) return null;
 
   return (
     <>

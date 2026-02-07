@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { Loader2, Radar, Target, ArrowRight, Zap, Play, AlertOctagon, Info } from "lucide-react";
 import Link from "next/link";
@@ -108,7 +109,7 @@ export default function HunterClient({ initialResults }: HunterClientProps) {
         setLoading(true);
         setResults([]);
         try {
-            const res = await fetch("http://localhost:8000/scanner/run");
+            const res = await apiFetch(`${API_URL}/scanner/run`);
             const data = await res.json();
             setResults(data);
             setHasScanned(true);

@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import ScreenerClient from "./ScreenerClient";
+import { API_URL } from "@/lib/api";
 
 async function getScreenerData() {
-  const API_URL = "http://localhost:8000";
   try {
     const [moversRes, mapRes] = await Promise.all([
       fetch(`${API_URL}/market-movers`, { cache: "no-store" }),

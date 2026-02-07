@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import PortfolioClient from "./PortfolioClient";
+import { API_URL } from "@/lib/api";
 
 async function getPortfolioData() {
-    const API_URL = "http://localhost:8000";
     try {
         const [portRes, accRes, analyticsRes, riskRes, benchmarkRes, ordersRes] = await Promise.all([
             fetch(`${API_URL}/portfolio`, { cache: "no-store" }),

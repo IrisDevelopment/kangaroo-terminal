@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { ArrowUpRight, ArrowDownRight, Loader2, Star, Plus, Bell, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -28,7 +29,7 @@ const fetchStories = async () => {
     });
     
     try {
-        const res = await fetch("http://localhost:8000/watchlist/stories");
+        const res = await apiFetch(`${API_URL}/watchlist/stories`);
         if(res.ok){
             const data = await res.json();
             // const validStories = data.filter((s: any) => s.design && s.design.slides && s.design.slides.length > 0);
@@ -68,7 +69,7 @@ const fetchStories = async () => {
   const fetchAlerts = async () => {
     setAlertsLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/alerts");
+      const res = await apiFetch(`${API_URL}/alerts`);
       const data = await res.json();
       setAlerts(data);
     } catch (e) {
@@ -80,7 +81,7 @@ const fetchStories = async () => {
 
   const deleteAlert = async (id: number) => {
     try {
-      await fetch(`http://localhost:8000/alerts/${id}`, { method: 'DELETE' });
+      await apiFetch(`${API_URL}/alerts/${id}`, { method: 'DELETE' });
       setAlerts(prev => prev.filter(a => a.id !== id));
       toast.success("Alert deleted");
     } catch (e) {
@@ -91,7 +92,7 @@ const fetchStories = async () => {
   useEffect(() => {
     const fetchWatchlist = async () => {
       try {
-        const res = await fetch("http://localhost:8000/watchlist");
+        const res = await apiFetch(`${API_URL}/watchlist`);
         const data = await res.json();
         setStocks(data);
       } catch (error) {
@@ -207,7 +208,7 @@ const fetchStories = async () => {
                   </div>
 
                   <div className="space-y-1">
-                    <span className="text-2xl font-bold tracking-tight text-white">${stock.price.toFixed(2)}</span>
+                    <span className="text-2xl font-bold tracking-tight text-white">${(stock.price ?? 0).toFixed(2)}</span>
                     <div className="flex items-center gap-2">
                       <div className={`flex items-center text-xs font-bold px-1.5 py-0.5 rounded ${isPositive ? 'text-success bg-success/10' : 'text-danger bg-danger/10'}`}>
                         {isPositive ? <ArrowUpRight size={12} className="mr-1" /> : <ArrowDownRight size={12} className="mr-1" />}
@@ -222,18 +223,18 @@ const fetchStories = async () => {
         })}
       </div>
 
-      <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
         <div className="lg:col-span-2">
           <div className="flex items-center gap-3 mb-6">
             <h2 className="text-3xl text-white font-instrument">Active Alerts</h2>
           </div>
 
           {alertsLoading ? (
-            <div className="luxury-card flex items-center justify-center min-h-112.5 h-full">
+            <div className="luxury-card flex items-center justify-center min-h-60 lg:min-h-112.5 h-full">
               <Loader2 className="animate-spin text-primary" size={32} />
             </div>
           ) : alerts.length === 0 ? (
-            <div className="luxury-card flex flex-col items-center justify-center min-h-112.5 h-full">
+            <div className="luxury-card flex flex-col items-center justify-center min-h-60 lg:min-h-112.5 h-full">
               <div className="p-4 rounded-full bg-white/5 mb-4">
                 <Bell size={32} className="text-gray-600" />
               </div>
@@ -268,7 +269,7 @@ const fetchStories = async () => {
                         {alert.condition === "REMINDER" ? (
                           <span className="text-xs text-gray-400 font-sans italic">{alert.note}</span>
                         ) : (
-                          `$${alert.target_price.toFixed(2)}`
+                          `$${(alert.target_price ?? 0).toFixed(2)}`
                         )}
                       </td>
                       <td className="p-4">

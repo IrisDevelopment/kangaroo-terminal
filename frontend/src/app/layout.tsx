@@ -6,10 +6,13 @@ import { Search } from "lucide-react"; // icons
 import Header from "./components/Header";
 import { SidebarProvider } from "@/context/SidebarContext";
 import { RooProvider } from "@/context/RooContext";
+import { SettingsProvider } from "@/context/SettingsContext";
 import PageWrapper from "@/app/components/PageWrapper"
 import StatusBar from "@/app/components/StatusBar";
 import Roo from "./components/Roo";
-import { Toaster } from "sonner";
+import ThemedToaster from "./components/ThemedToaster";
+import MotionWrapper from "./components/MotionWrapper";
+import DisplayModeModal from "./components/DisplayModeModal";
 
 const inter = Inter({
     subsets: ["latin"],
@@ -43,37 +46,27 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body className={`${inter.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
-                <SidebarProvider>
-                    <RooProvider>
-                        <div className="flex min-h-screen bg-background text-text">
-                            <Sidebar />
-                            <PageWrapper>
-                                <Header />
-                                <div className="pb-12">
-                                    {children}
+                <SettingsProvider>
+                    <MotionWrapper>
+                        <SidebarProvider>
+                            <RooProvider>
+                                <div className="flex min-h-screen bg-background text-text">
+                                    <Sidebar />
+                                    <PageWrapper>
+                                        <Header />
+                                        <div className="pb-12">
+                                            {children}
+                                        </div>
+                                        <StatusBar />
+                                    </PageWrapper>
                                 </div>
-                                <StatusBar />
-                            </PageWrapper>
-                        </div>
-                        <Roo />
-                        <Toaster
-                            position="bottom-right"
-                            theme="dark"
-                            toastOptions={{
-                                style: {
-                                    background: '#0F0B08',
-                                    border: '1px solid rgba(198, 142, 86, 0.4)',
-                                    color: '#EBE3DB',
-                                    boxShadow: '0 0 25px rgba(198, 142, 86, 0.15), 0 4px 10px rgba(0,0,0,0.5)',
-                                    borderRadius: '12px',
-                                    padding: '16px',
-                                    fontSize: '13px'
-                                },
-                                className: 'font-sans'
-                            }}
-                        />
-                    </RooProvider>
-                </SidebarProvider>
+                                <Roo />
+                                <ThemedToaster />
+                                <DisplayModeModal />
+                            </RooProvider>
+                        </SidebarProvider>
+                    </MotionWrapper>
+                </SettingsProvider>
             </body>
         </html>
     );

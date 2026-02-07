@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2, Play, AlertTriangle, TrendingUp, TrendingDown, RefreshCcw } from "lucide-react";
@@ -21,7 +22,7 @@ export default function SimulationClient({ ticker, initialHistory }: SimulationC
             let history = inputHistory;
             // fetch history if not provided (re-run)
             if (!history) {
-                const res = await fetch(`http://localhost:8000/stock/${ticker}/history?period=2y`);
+                const res = await apiFetch(`${API_URL}/stock/${ticker}/history?period=2y`);
                 if (!res.ok) throw new Error("Failed to fetch data");
                 history = await res.json();
             }
@@ -158,9 +159,9 @@ export default function SimulationClient({ ticker, initialHistory }: SimulationC
                     </div>
 
                     {/* chart */}
-                    <div className="lg:col-span-2 luxury-card p-6 rounded-2xl border border-white/5 h-100">
+                    <div className="lg:col-span-2 luxury-card p-4 lg:p-6 rounded-2xl border border-white/5 h-[40vh] lg:h-100">
                         <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">Equity Curve</h3>
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                             <AreaChart data={results.chart}>
                                 <defs>
                                     <linearGradient id="gEquity" x1="0" y1="0" x2="0" y2="1">

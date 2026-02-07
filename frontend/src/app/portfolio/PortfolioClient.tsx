@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { Loader2, XCircle, TrendingUp, TrendingDown, Wallet, ShieldCheck, Activity, PieChart as PieIcon, AlertTriangle, Target, X } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as ReTooltip, PieChart, Pie, Cell } from "recharts";
@@ -71,12 +72,12 @@ export default function PortfolioClient({
     const fetchPortfolio = async () => {
         try {
             const [portRes, accRes, analyticsRes, riskRes, benchRes, ordersRes] = await Promise.all([
-                fetch("http://localhost:8000/portfolio"),
-                fetch("http://localhost:8000/account"),
-                fetch("http://localhost:8000/portfolio/analytics"),
-                fetch("http://localhost:8000/portfolio/risk"),
-                fetch("http://localhost:8000/portfolio/benchmark"),
-                fetch("http://localhost:8000/orders/pending")
+                apiFetch(`${API_URL}/portfolio`),
+                apiFetch(`${API_URL}/account`),
+                apiFetch(`${API_URL}/portfolio/analytics`),
+                apiFetch(`${API_URL}/portfolio/risk`),
+                apiFetch(`${API_URL}/portfolio/benchmark`),
+                apiFetch(`${API_URL}/orders/pending`)
             ]);
 
             setHoldings(await portRes.json());
@@ -97,7 +98,7 @@ export default function PortfolioClient({
 
     const cancelOrder = async (orderId: number) => {
         try {
-            const res = await fetch(`http://localhost:8000/orders/cancel/${orderId}`, { method: "DELETE" });
+            const res = await apiFetch(`${API_URL}/orders/cancel/${orderId}`, { method: "DELETE" });
             if (res.ok) fetchPortfolio();
         } catch (e) { console.error(e); }
     };
@@ -106,7 +107,7 @@ export default function PortfolioClient({
         if (!confirm(`Close ${ticker}?`)) return;
         setLoading(true);
         try {
-            const res = await fetch("http://localhost:8000/trade", {
+            const res = await apiFetch(`${API_URL}/trade`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ ticker, shares, price, type: "SELL" })
@@ -120,9 +121,9 @@ export default function PortfolioClient({
         <div className="animate-in fade-in duration-500 space-y-6 pb-20">
 
             {/* header */}
-            <div className="flex justify-between items-end">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2">
                 <div>
-                    <h1 className="text-4xl text-white font-instrument">Portfolio</h1>
+                    <h1 className="text-3xl sm:text-4xl text-white font-instrument">Portfolio</h1>
                     <p className="text-sm text-gray-500">Asset allocation & risk metrics.</p>
                 </div>
                 <div className="text-right">
@@ -142,8 +143,8 @@ export default function PortfolioClient({
                             <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Net Liquidation Value</span>
                         </div>
 
-                        <div className="flex items-center gap-4">
-                            <h2 className="text-6xl text-white font-instrument tracking-tight">
+                        <div className="flex items-center gap-4 flex-wrap">
+                            <h2 className="text-4xl sm:text-6xl text-white font-instrument tracking-tight">
                                 ${account?.total_equity.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </h2>
                             <div className={`px-3 py-1 rounded-full border text-sm font-bold flex items-center gap-1 ${totalPnL >= 0 ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400"}`}>
@@ -216,8 +217,8 @@ export default function PortfolioClient({
                                         </span>
                                     </td>
                                     <td className="p-4 text-right font-mono text-gray-400 text-sm">{h.shares}</td>
-                                    <td className="p-4 text-right font-mono text-primary font-bold text-sm">${h.avg_cost.toFixed(2)}</td>
-                                    <td className="p-4 text-right font-mono text-white text-sm">${h.current_price.toFixed(2)}</td>
+                                    <td className="p-4 text-right font-mono text-primary font-bold text-sm">${(h.avg_cost ?? 0).toFixed(2)}</td>
+                                    <td className="p-4 text-right font-mono text-white text-sm">${(h.current_price ?? 0).toFixed(2)}</td>
                                     <td className="p-4 text-right font-mono text-white font-bold text-sm">${h.market_value.toLocaleString()}</td>
                                     <td className="p-4 text-right">
                                         <div className={`flex flex-col items-end ${h.pnl >= 0 ? "text-success" : "text-danger"}`}>
@@ -225,7 +226,7 @@ export default function PortfolioClient({
                                                 {h.pnl > 0 ? "+" : ""}{h.pnl.toLocaleString()}
                                             </span>
                                             <span className="text-[10px] opacity-80">
-                                                {h.pnl_percent.toFixed(2)}%
+                                                {(h.pnl_percent ?? 0).toFixed(2)}%
                                             </span>
                                         </div>
                                     </td>
@@ -274,13 +275,13 @@ export default function PortfolioClient({
                                     <td className="p-4 text-right font-mono text-gray-400 text-sm">{order.shares}</td>
                                     <td className="p-4 text-right">
                                         <div className="flex flex-col items-end">
-                                            <span className="font-mono text-primary text-sm font-bold">${order.limit_price.toFixed(2)}</span>
+                                            <span className="font-mono text-primary text-sm font-bold">${(order.limit_price ?? 0).toFixed(2)}</span>
                                             {order.order_type === 'STOP_LOSS' && order.avg_cost > 0 && (
-                                                <span className="text-[10px] text-gray-500 font-mono">Entry: ${order.avg_cost.toFixed(2)}</span>
+                                                <span className="text-[10px] text-gray-500 font-mono">Entry: ${(order.avg_cost ?? 0).toFixed(2)}</span>
                                             )}
                                         </div>
                                     </td>
-                                    <td className="p-4 text-right font-mono text-white text-sm">${order.current_price.toFixed(2)}</td>
+                                    <td className="p-4 text-right font-mono text-white text-sm">${(order.current_price ?? 0).toFixed(2)}</td>
                                     <td className="p-4 text-right font-mono text-white/50 text-sm">${(order.shares * order.current_price).toLocaleString()}</td>
                                     <td className="p-4 text-right">
                                         <div className="flex flex-col items-end">
@@ -331,7 +332,7 @@ export default function PortfolioClient({
             </div>
 
             {/* row 2: analytics */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
 
                 {/* left: sector allocation */}
                 <div className="luxury-card p-8 rounded-2xl flex flex-col justify-between min-h-80">
@@ -340,11 +341,11 @@ export default function PortfolioClient({
                         <PieIcon size={18} className="text-gray-500" />
                     </div>
 
-                    <div className="flex items-center justify-between h-full gap-8">
+                    <div className="flex flex-col sm:flex-row items-center justify-between h-full gap-6 sm:gap-8">
                         {/* chart */}
-                        <div className="relative w-56 h-56 shrink-0">
+                        <div className="relative w-40 h-40 sm:w-56 sm:h-56 shrink-0">
                             {analytics.length > 0 && (
-                                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <PieChart>
                                         <Pie
                                             data={analytics}
@@ -393,7 +394,7 @@ export default function PortfolioClient({
                     </div>
 
                     {riskData ? (
-                        <div className="flex-1 grid grid-cols-2 gap-8 divide-x divide-white/5">
+                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-8 sm:divide-x divide-white/5">
 
                             {/* volatility gauge */}
                             <div className="flex flex-col items-center justify-center text-center">
@@ -512,7 +513,7 @@ export default function PortfolioClient({
                                     </div>
                                 </div>
                             </div>
-                            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                 <AreaChart data={benchmarkData.history}>
                                     <defs>
                                         <linearGradient id="colorPort" x1="0" y1="0" x2="0" y2="1">
@@ -563,7 +564,7 @@ export default function PortfolioClient({
                         </div>
 
                         {/* right: scorecard */}
-                        <div className="w-full lg:w-1/3 flex flex-col justify-center border-l border-white/5 pl-8">
+                        <div className="w-full lg:w-1/3 flex flex-col justify-center lg:border-l border-white/5 lg:pl-8 pt-6 lg:pt-0 border-t lg:border-t-0">
                             {benchmarkData.metrics && (
                                 <div className="space-y-6">
 

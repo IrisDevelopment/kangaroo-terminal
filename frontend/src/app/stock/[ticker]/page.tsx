@@ -2,11 +2,10 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import StockDetailClient from "./StockDetailClient";
+import { API_URL } from "@/lib/api";
 
 // helper for data fetching
 async function getData(ticker: string) {
-  const API_URL = "http://localhost:8000";
-  
   // default to 1y data for initial load
   const period = "1y";
   const interval = "1d";

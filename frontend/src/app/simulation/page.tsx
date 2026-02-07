@@ -1,10 +1,11 @@
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import SimulationClient from "./SimulationClient";
+import { API_URL } from "@/lib/api";
 
 async function getSimulationData(ticker: string) {
   try {
-    const res = await fetch(`http://localhost:8000/stock/${ticker}/history?period=2y`, { cache: "no-store" });
+    const res = await fetch(`${API_URL}/stock/${ticker}/history?period=2y`, { cache: "no-store" });
     if (!res.ok) return [];
     return await res.json();
   } catch (e) {

@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 import { useSidebar } from "@/context/SidebarContext";
 import { motion } from "framer-motion";
 import { useEffect, useRef } from "react";
@@ -6,7 +7,7 @@ import { toast } from "sonner";
 import { BellRing } from "lucide-react";
 
 export default function PageWrapper({ children }: { children: React.ReactNode }) {
-  const { isCollapsed } = useSidebar();
+  const { isCollapsed, isMobile } = useSidebar();
   const notifiedIds = useRef<Set<number>>(new Set());
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -41,24 +42,21 @@ export default function PageWrapper({ children }: { children: React.ReactNode })
 
     const checkAlerts = async () => {
       try {
-        const res = await fetch("http://localhost:8000/alerts/triggered");
+        const res = await apiFetch(`${API_URL}/alerts/triggered`);
         if (!res.ok) return;
         const alerts = await res.json();
 
         let hasNew = false;
         alerts.forEach((alert: any) => {
           if (!notifiedIds.current.has(alert.id)) {
-            // mark as notified immediately to avoid duplicates
             notifiedIds.current.add(alert.id);
 
-            // visual toast always shows for new/active alerts
             toast(`PRICE ALERT: ${alert.ticker}`, {
-              description: `Price is ${alert.condition} $${alert.target_price.toFixed(2)}`,
+              description: `Price is ${alert.condition} $${(alert.target_price ?? 0).toFixed(2)}`,
               icon: <BellRing className="text-red-500" size={18} />,
               duration: 10000,
             });
 
-            // attempt audio alert - if browser blocks it, it will fail silently via catch block
             hasNew = true;
           }
         });
@@ -82,11 +80,10 @@ export default function PageWrapper({ children }: { children: React.ReactNode })
 
   return (
     <motion.main
-      // animate margin based on sidebar state
-      initial={{ marginLeft: "16rem" }} // 16rem = w-64
-      animate={{ marginLeft: isCollapsed ? "5rem" : "16rem" }} // 5rem = w-20
+      initial={{ marginLeft: isMobile ? "0rem" : "16rem" }}
+      animate={{ marginLeft: isMobile ? "0rem" : isCollapsed ? "5rem" : "16rem" }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      className="flex-1 p-8"
+      className="flex-1 p-4 lg:p-8"
     >
       {children}
     </motion.main>

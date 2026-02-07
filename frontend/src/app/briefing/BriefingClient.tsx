@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 
 import { useEffect, useState } from "react";
 import { Play, Pause, RotateCcw, Newspaper } from "lucide-react";
@@ -23,7 +24,7 @@ export default function BriefingClient() {
     const fetchBriefing = async () => {
         setLoading(true);
         try {
-            const res = await fetch("http://localhost:8000/briefing/generate");
+            const res = await apiFetch(`${API_URL}/briefing/generate`);
             const json = await res.json();
             setData(json);
         } catch (e) {

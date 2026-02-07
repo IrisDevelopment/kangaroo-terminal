@@ -97,11 +97,19 @@ async def scrape_google_news(ticker: str, max_results: int = 5):
                 
                 await page.goto(current_url, timeout=30000)
                 
+                # wait for search results with multiple fallback selectors
                 try:
-                    await page.wait_for_selector('div#search', timeout=10000)
+                    await page.wait_for_selector('div#search', timeout=20000)
                 except:
-                    print(f"⚠️ [News Scraper] timeout waiting for results on page {page_idx+1}")
-                    break
+                    # try fallback selectors
+                    try:
+                        await page.wait_for_selector('#rso', timeout=5000)
+                    except:
+                        try:
+                            await page.wait_for_selector('[data-sokoban-container]', timeout=5000)
+                        except:
+                            print(f"⚠️ [News Scraper] timeout waiting for results on page {page_idx+1}")
+                            break
                 
                 cards = await page.query_selector_all('div.SoaBEf')
                 if not cards:
@@ -167,9 +175,15 @@ async def scrape_google_news(ticker: str, max_results: int = 5):
                                 })
                     except Exception as e:
                         continue
+
+                if page_idx < 1:  # don't delay after last page
+                    await asyncio.sleep(2)
                 
                 if len(found_items) >= max_results:
                     break
+            
+            # initialize articles list
+            articles = []
             
             # read top result full content
             if found_items:
@@ -190,7 +204,9 @@ async def scrape_google_news(ticker: str, max_results: int = 5):
                     print(f"⚠️ [News Scraper] failed to extracting full content: {e}")
                     top_item['content'] = top_item['title'] # fallback
                     
-                articles = found_items 
+                articles = found_items
+            else:
+                articles = []
             
             await browser.close()
             return articles

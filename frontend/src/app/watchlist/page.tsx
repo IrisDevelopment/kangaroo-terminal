@@ -1,10 +1,11 @@
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import WatchlistClient from "./WatchlistClient";
+import { API_URL } from "@/lib/api";
 
 async function getWatchlist() {
   try {
-    const res = await fetch("http://localhost:8000/watchlist", { cache: "no-store" });
+    const res = await fetch(`${API_URL}/watchlist`, { cache: "no-store" });
     return await res.json();
   } catch (error) {
     return [];

@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Loader2, Info, ZoomIn, ZoomOut, Maximize2, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
@@ -69,7 +70,7 @@ export default function GalaxyClient() {
   // fetch galaxy data
   const fetchGalaxy = useCallback(async () => {
     try {
-      const res = await fetch(`http://localhost:8000/market-galaxy?threshold=${threshold}`);
+      const res = await apiFetch(`${API_URL}/market-galaxy?threshold=${threshold}`);
       if (!res.ok) throw new Error("failed to fetch galaxy");
       const json = await res.json();
     
@@ -90,7 +91,6 @@ export default function GalaxyClient() {
     fetchGalaxy();
   }, [fetchGalaxy]);
 
-  // resize
   useEffect(() => {
     const updateDimensions = () => {
       if (containerRef.current) {
@@ -101,7 +101,17 @@ export default function GalaxyClient() {
 
     updateDimensions();
     window.addEventListener("resize", updateDimensions);
-    return () => window.removeEventListener("resize", updateDimensions);
+
+    let observer: ResizeObserver | null = null;
+    if (containerRef.current) {
+      observer = new ResizeObserver(updateDimensions);
+      observer.observe(containerRef.current);
+    }
+
+    return () => {
+      window.removeEventListener("resize", updateDimensions);
+      observer?.disconnect();
+    };
   }, []);
 
   // find connected nodes upon hover
@@ -152,8 +162,8 @@ export default function GalaxyClient() {
     const minSize = 6;
     const maxSize = 32;
     
-    const normalized = (logCap - minLog) / (maxLog - minLog);
-    const clamped = Math.max(0, Math.min(1, normalized));
+    const normalised = (logCap - minLog) / (maxLog - minLog);
+    const clamped = Math.max(0, Math.min(1, normalised));
     
     return minSize + clamped * (maxSize - minSize);
   }, []);
@@ -242,17 +252,17 @@ export default function GalaxyClient() {
   };
 
   return (
-    <div className="p-8 max-w-full mx-auto min-h-screen">
+    <div className="p-4 sm:p-8 max-w-full mx-auto min-h-screen">
       <header className="mb-6 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="mb-1 font-instrument text-4xl tracking-tight bg-linear-to-br via-stone-200 bg-clip-text text-transparent drop-shadow-[0_1.5px_1.5px_rgba(0,0,0,0.5)] whitespace-nowrap overflow-hidden">
+          <h1 className="mb-1 font-instrument text-3xl sm:text-4xl tracking-tight bg-linear-to-br via-stone-200 bg-clip-text text-transparent drop-shadow-[0_1.5px_1.5px_rgba(0,0,0,0.5)]">
             Market Galaxy
           </h1>
           <p className="text-gray-400 text-sm">Correlation network of ASX stocks</p>
         </div>
 
         {/* controls */}
-        <div className="flex items-center gap-4 bg-surface/50 border border-white/5 rounded-full px-4 py-2 backdrop-blur-md shadow-lg">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 bg-surface/50 border border-white/5 rounded-2xl sm:rounded-full px-3 sm:px-4 py-2 backdrop-blur-md shadow-lg">
           {/* threshold slider */}
           <div className="flex items-center gap-3 border-r border-white/10 pr-4">
             <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Correlation ≥ {threshold.toFixed(2)}</span>
@@ -285,7 +295,7 @@ export default function GalaxyClient() {
         </div>
       </header>
 
-      <div className="luxury-card flex flex-col lg:flex-row overflow-hidden bg-black/40" style={{ height: "calc(100vh - 280px)", minHeight: "500px" }}>
+      <div className="luxury-card flex flex-col lg:flex-row overflow-hidden bg-black/40" style={{ height: "calc(100dvh - 200px)", minHeight: "350px" }}>
         {/* graph area */}
         <div ref={containerRef} className="flex-1 relative h-full min-h-100">
           {loading ? (

@@ -1,6 +1,8 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useSidebar } from "@/context/SidebarContext";
+import { useSettings } from "@/context/SettingsContext";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Loader2, X, BrainCircuit, Calculator, Star, ChevronDown, Layers, Plus, Search, Users, Briefcase, PieChart as PieIcon, Target, Info, Bell, FileText, Download, Eye, Calendar, DollarSign, Maximize2, Minimize2, Globe, Rss } from "lucide-react";
 import Link from "next/link";
@@ -124,11 +126,11 @@ const OrderTicket = ({ ticker, currentPrice, onTrade }: any) => {
   const executeOrder = async () => {
     setLoading(true);
     try {
-      let endpoint = "http://localhost:8000/trade";
+      let endpoint = `${API_URL}/trade`;
       let payload: any = { ticker: ticker.toUpperCase(), shares, price: currentPrice, type };
 
       if (orderCategory !== "MARKET") {
-        endpoint = "http://localhost:8000/orders/create";
+        endpoint = `${API_URL}/orders/create`;
         // for pending orders: type  LIMIT_BUY, LIMIT_SELL, or STOP_LOSS
         let pendingType = "";
         if (orderCategory === "LIMIT") {
@@ -279,7 +281,7 @@ const PendingOrdersList = ({ orders, onCancel }: any) => {
                   <span className="text-[10px] font-black text-white leading-none">{order.order_type.replace('_', ' ')}</span>
                   <span className="text-[9px] text-gray-500 font-bold leading-none">{order.shares}</span>
                 </div>
-                <div className="text-xs font-bold text-primary font-mono mt-0.5">${order.limit_price.toFixed(2)}</div>
+                <div className="text-xs font-bold text-primary font-mono mt-0.5">${(order.limit_price ?? 0).toFixed(2)}</div>
               </div>
             </div>
             <button
@@ -375,6 +377,7 @@ export default function StockDetailClient({
   const [rightPanel, setRightPanel] = useState("info");
   const [institutional, setInstitutional] = useState<any>(initialInstitutional);
   const { isCollapsed, setCollapsed } = useSidebar();
+  const { settings } = useSettings();
   const sidebarPrevRef = useRef<boolean | null>(null);
 
   // cache constants
@@ -493,7 +496,7 @@ export default function StockDetailClient({
       if (compareTicker.length > 1) {
         setIsSearching(true);
         try {
-          const res = await fetch(`http://localhost:8000/search?q=${compareTicker}`);
+          const res = await apiFetch(`${API_URL}/search?q=${compareTicker}`);
           const data = await res.json();
           setSearchResults(data);
         } catch (error) {
@@ -513,7 +516,7 @@ export default function StockDetailClient({
     if (!targetTicker) return;
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/stock/${targetTicker}/history?period=${activeTf.period}&interval=${activeTf.interval}`);
+      const res = await apiFetch(`${API_URL}/stock/${targetTicker}/history?period=${activeTf.period}&interval=${activeTf.interval}`);
       if (res.ok) {
         const json = await res.json();
         setComparisonData(json);
@@ -542,7 +545,7 @@ export default function StockDetailClient({
     const fetchHistory = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`http://localhost:8000/stock/${ticker}/history?period=${activeTf.period}&interval=${activeTf.interval}`);
+        const res = await apiFetch(`${API_URL}/stock/${ticker}/history?period=${activeTf.period}&interval=${activeTf.interval}`);
 
         if (res.status === 404) {
           setIs404(true);
@@ -577,7 +580,7 @@ export default function StockDetailClient({
     const fetchTransactions = async () => {
       setTransactionsLoading(true);
       try {
-        const res = await fetch(`http://localhost:8000/stock/${ticker}/transactions`);
+        const res = await apiFetch(`${API_URL}/stock/${ticker}/transactions`);
         if (res.ok) {
           const json = await res.json();
           const nextKey = JSON.stringify(json.map((tx: any) => [tx.id, tx.timestamp, tx.price]));
@@ -594,7 +597,7 @@ export default function StockDetailClient({
 
   const handleCancelOrder = async (orderId: number) => {
     try {
-      const res = await fetch(`http://localhost:8000/orders/cancel/${orderId}`, { method: "DELETE" });
+      const res = await apiFetch(`${API_URL}/orders/cancel/${orderId}`, { method: "DELETE" });
       if (res.ok) {
         toast.success("Order Cancelled");
         setRefreshOrders(prev => prev + 1);
@@ -607,7 +610,7 @@ export default function StockDetailClient({
     const fetchPending = async () => {
       setOrdersLoading(true);
       try {
-        const res = await fetch(`http://localhost:8000/orders/pending/${ticker}`);
+        const res = await apiFetch(`${API_URL}/orders/pending/${ticker}`);
         if (res.ok) {
           const json = await res.json();
           const nextKey = JSON.stringify(json.map((order: any) => [order.id, order.limit_price, order.order_type]));
@@ -631,12 +634,18 @@ export default function StockDetailClient({
     return () => clearInterval(poll);
   }, []);
 
-  // fetch stock events
+  // fetch stock events (only if enabled)
   useEffect(() => {
+    if (!settings.chartEventsEnabled) {
+      setEvents([]);
+      setEventsStatus(null);
+      return;
+    }
+
     const fetchEvents = async () => {
       setEventsLoading(true);
       try {
-        const res = await fetch(`http://localhost:8000/stock/${ticker}/events`);
+        const res = await apiFetch(`${API_URL}/stock/${ticker}/events`);
         if (res.ok) {
            const json = await res.json();
            setEvents(json);
@@ -655,7 +664,7 @@ export default function StockDetailClient({
       }
     };
     fetchEvents();
-  }, [ticker]);
+  }, [ticker, settings.chartEventsEnabled]);
 
   const markerData = useMemo(() => {
     if (!data.length) {
@@ -972,7 +981,7 @@ export default function StockDetailClient({
     try {
       // encode url 
       const encodedUrl = encodeURIComponent(url);
-      const res = await fetch(`http://localhost:8000/read-article?url=${encodedUrl}`);
+      const res = await apiFetch(`${API_URL}/read-article?url=${encodedUrl}`);
       if (!res.ok) throw new Error("Failed to load");
       const json = await res.json();
       setArticleContent(json);
@@ -995,7 +1004,7 @@ export default function StockDetailClient({
 
     setAnalysing(true);
     try {
-      const res = await fetch(`http://localhost:8000/stock/${ticker}/analyse`);
+      const res = await apiFetch(`${API_URL}/stock/${ticker}/analyse`);
       const json = await res.json();
       setAiReport(json.report);
       setCachedData('analysis', ticker, json.report);
@@ -1019,7 +1028,7 @@ export default function StockDetailClient({
 
     setFilingsLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/stock/${ticker}/filings`);
+      const res = await apiFetch(`${API_URL}/stock/${ticker}/filings`);
       const data = await res.json();
 
       if (data.filings && Array.isArray(data.filings)) {
@@ -1049,7 +1058,7 @@ export default function StockDetailClient({
     const newState = !isWatched;
     setIsWatched(newState);
     try {
-      await fetch(`http://localhost:8000/stock/${ticker}/toggle-watch`, { method: "POST" });
+      await apiFetch(`${API_URL}/stock/${ticker}/toggle-watch`, { method: "POST" });
     } catch (e) {
       console.error(e);
       setIsWatched(!newState); // revert on error
@@ -1114,7 +1123,7 @@ export default function StockDetailClient({
         </Link>
 
         {/* header */}
-        <div className="flex justify-between items-start mb-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-start gap-4 mb-8">
           <div className="flex items-center gap-5">
             {/* large logo */}
             {!imageError ? (
@@ -1122,19 +1131,19 @@ export default function StockDetailClient({
                 <img
                   src={`https://files.marketindex.com.au/xasx/96x96-png/${ticker.toLowerCase()}.png`}
                   alt={`${ticker} logo`}
-                  className="w-16 h-16 rounded-full object-cover bg-white border-2 border-primary/20 shadow-[0_0_20px_rgba(198,142,86,0.15)]"
+                  className="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover bg-white border-2 border-primary/20 shadow-[0_0_20px_rgba(198,142,86,0.15)]"
                   onError={() => setImageError(true)}
                 />
               </div>
             ) : (
               // fallback (letter)
-              <div className="w-16 h-16 shrink-0 rounded-full flex items-center justify-center text-2xl font-bold bg-surface text-gray-500 border border-white/10 shadow-inner">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 shrink-0 rounded-full flex items-center justify-center text-xl sm:text-2xl font-bold bg-surface text-gray-500 border border-white/10 shadow-inner">
                 {ticker[0].toUpperCase()}
               </div>
             )}
 
             <div>
-              <h1 className="text-4xl font-bold text-white tracking-tight">{ticker.toUpperCase()}</h1>
+              <h1 className="text-2xl sm:text-4xl font-bold text-white tracking-tight">{ticker.toUpperCase()}</h1>
               <div className="flex items-center gap-3 mt-1">
                 <span className="text-gray-500">ASX Historical Data</span>
                 {companyInfo?.sector && (
@@ -1174,11 +1183,11 @@ export default function StockDetailClient({
       </div>
 
       {/* grid layout; chart at the left & profile at tjhe right */}
-      <div className={`grid grid-cols-1 ${isChartExpanded ? "lg:grid-cols-1" : "lg:grid-cols-3"} gap-6 min-h-125 transition-all duration-500 ease-out`}>
+      <div className={`grid grid-cols-1 ${isChartExpanded ? "lg:grid-cols-1" : "lg:grid-cols-3"} gap-6 min-h-100 lg:min-h-125 transition-all duration-500 ease-out`}>
         {/* chart */}
         <div className={`luxury-card p-4 rounded-xl relative flex flex-col transition-all duration-500 ease-out ${isChartExpanded ? "min-h-[86vh]" : "lg:col-span-2"}`}>
           {/* toolbar heading */}
-          <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-2 relative z-20">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 border-b border-white/5 pb-2 relative z-20">
 
             <div className="flex items-center gap-3">
               <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">
@@ -1186,7 +1195,7 @@ export default function StockDetailClient({
               </h3>
 
               {/* indicator dropdown */}
-              <div className="relative">
+              <div className="relative hidden md:block">
                 <button
                   onClick={() => setShowIndicatorMenu(!showIndicatorMenu)}
                   className="flex items-center gap-1 text-[10px] font-bold px-3 py-1.5 rounded-lg border border-white/10 hover:border-primary/50 text-gray-400 hover:text-white transition-all"
@@ -1223,7 +1232,7 @@ export default function StockDetailClient({
               </div>
 
               {/* compare input */}
-              <div className="relative flex items-center">
+              <div className="relative items-center hidden md:flex">
                 {comparisonSymbol ? (
                   <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 px-2 py-1.5 rounded-lg">
                     <div className="w-2 h-2 rounded-full bg-blue-500"></div>
@@ -1297,8 +1306,8 @@ export default function StockDetailClient({
             </div>
 
             {/* timeframe buttons */}
-              <div className="flex items-center gap-3">
-              <div className="flex bg-background/50 border border-white/5 rounded-xl p-1 gap-1">
+              <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex bg-background/50 border border-white/5 rounded-xl p-1 gap-0.5 sm:gap-1 flex-wrap">
                 {timeframes.map((tf) => (
                   <button
                     key={tf.label}
@@ -1453,40 +1462,40 @@ export default function StockDetailClient({
 
       <div className={`transition-all duration-500 ease-out ${isChartExpanded ? "opacity-0 pointer-events-none max-h-0 overflow-hidden mt-0" : "mt-8"}`}>
         {/* tab buttons */}
-        <div className="flex gap-6 border-b border-white/5 mb-6">
+        <div className="flex gap-4 sm:gap-6 border-b border-white/5 mb-6 overflow-x-auto pb-px custom-scrollbar">
           <button
             onClick={() => setActiveTab("news")}
-            className={`pb-3 text-sm font-bold tracking-wide transition-colors border-b-2 ${activeTab === "news" ? "text-primary border-primary" : "text-gray-500 border-transparent hover:text-white"}`}
+            className={`pb-3 text-sm font-bold tracking-wide transition-colors border-b-2 whitespace-nowrap ${activeTab === "news" ? "text-primary border-primary" : "text-gray-500 border-transparent hover:text-white"}`}
           >
             LATEST NEWS
           </button>
           <button
             onClick={() => setActiveTab("financials")}
-            className={`pb-3 text-sm font-bold tracking-wide transition-colors border-b-2 ${activeTab === "financials" ? "text-primary border-primary" : "text-gray-500 border-transparent hover:text-white"}`}
+            className={`pb-3 text-sm font-bold tracking-wide transition-colors border-b-2 whitespace-nowrap ${activeTab === "financials" ? "text-primary border-primary" : "text-gray-500 border-transparent hover:text-white"}`}
           >
             FINANCIALS
           </button>
           <button
             onClick={() => setActiveTab("ai")}
-            className={`pb-3 text-sm font-bold tracking-wide transition-colors border-b-2 ${activeTab === "ai" ? "text-primary border-primary" : "text-gray-500 border-transparent hover:text-white"}`}
+            className={`pb-3 text-sm font-bold tracking-wide transition-colors border-b-2 whitespace-nowrap ${activeTab === "ai" ? "text-primary border-primary" : "text-gray-500 border-transparent hover:text-white"}`}
           >
             ANALYSIS
           </button>
           <button
             onClick={() => setActiveTab("valuation")}
-            className={`pb-3 text-sm font-bold tracking-wide transition-colors border-b-2 ${activeTab === "valuation" ? "text-primary border-primary" : "text-gray-500 border-transparent hover:text-white"}`}
+            className={`pb-3 text-sm font-bold tracking-wide transition-colors border-b-2 whitespace-nowrap ${activeTab === "valuation" ? "text-primary border-primary" : "text-gray-500 border-transparent hover:text-white"}`}
           >
             VALUATION
           </button>
           <button
             onClick={() => setActiveTab("corporate")}
-            className={`pb-3 text-sm font-bold tracking-wide transition-colors border-b-2 ${activeTab === "corporate" ? "text-primary border-primary" : "text-gray-500 border-transparent hover:text-white"}`}
+            className={`pb-3 text-sm font-bold tracking-wide transition-colors border-b-2 whitespace-nowrap ${activeTab === "corporate" ? "text-primary border-primary" : "text-gray-500 border-transparent hover:text-white"}`}
           >
             CORPORATE
           </button>
           <button
             onClick={() => setActiveTab("filings")}
-            className={`pb-3 text-sm font-bold tracking-wide transition-colors border-b-2 ${activeTab === "filings" ? "text-primary border-primary" : "text-gray-500 border-transparent hover:text-white"}`}
+            className={`pb-3 text-sm font-bold tracking-wide transition-colors border-b-2 whitespace-nowrap ${activeTab === "filings" ? "text-primary border-primary" : "text-gray-500 border-transparent hover:text-white"}`}
           >
             FILINGS
           </button>

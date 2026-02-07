@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { Search, ArrowRight, Loader2, Trophy, AlertTriangle, BrainCircuit, Activity, Scaling, ArrowLeftRight } from "lucide-react";
 import { 
@@ -31,7 +32,7 @@ const MetricRow = ({ label, val1, val2, format, invert = false }: any) => {
     };
 
     return (
-        <div className="grid grid-cols-3 py-3 border-b border-white/5 items-center hover:bg-white/5 transition-colors px-4 rounded-lg group">
+        <div className="grid grid-cols-3 py-3 border-b border-white/5 items-center hover:bg-white/5 transition-colors px-2 md:px-4 rounded-lg group text-xs md:text-sm">
             <div className={cn("text-left font-mono font-bold transition-all", win1 ? "text-primary text-base" : "text-gray-500 text-sm")}>
                 {formatVal(val1)}
                 {win1 && <Trophy size={10} className="inline ml-2 text-primary" />}
@@ -63,7 +64,7 @@ export default function ComparePage() {
         setAiVerdict(null);
         setLoading(true);
         try {
-            const res = await fetch(`http://localhost:8000/compare?t1=${t1}&t2=${t2}`);
+            const res = await apiFetch(`${API_URL}/compare?t1=${t1}&t2=${t2}`);
             if (!res.ok) throw new Error("Stocks not found");
             const jsonData = await res.json();
             // backend returns { stock_1, stock_2, radar_data, correlation, winner }
@@ -80,7 +81,7 @@ export default function ComparePage() {
         if(!data) return;
         setanalysing(true);
         try {
-            const res = await fetch("http://localhost:8000/compare/ai", {
+            const res = await apiFetch(`${API_URL}/compare/ai`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ t1, t2 })
@@ -196,7 +197,7 @@ export default function ComparePage() {
                 </div>
 
                 {/* correlation & radar section */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-100">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto lg:h-100">
                     
                     {/* radar chart */}
                     <div className="lg:col-span-2 luxury-card rounded-2xl border border-white/5 p-4 flex flex-col relative overflow-hidden">
@@ -207,7 +208,7 @@ export default function ComparePage() {
                             </h3>
                         </div>
                         <div className="flex-1 w-full h-full min-h-75">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                 <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data.radar_data}>
                                     <PolarGrid stroke="#333" />
                                     <PolarAngleAxis dataKey="subject" tick={{ fill: '#888', fontSize: 12 }} />
@@ -284,7 +285,7 @@ export default function ComparePage() {
                     </div>
                     
                     <div className="flex-1 w-full min-h-0">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             {chartMode === "perf" ? (
                                 <AreaChart data={chartData}>
                                     <defs>

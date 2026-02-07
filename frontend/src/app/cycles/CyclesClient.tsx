@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 
 import { useEffect, useState } from "react";
 import { 
@@ -81,7 +82,7 @@ export default function CyclesClient() {
 
   const fetchCycles = async () => {
     try {
-      const res = await fetch(`http://localhost:8000/cycles?frequency=${period}&range=${range}`);
+      const res = await apiFetch(`${API_URL}/cycles?frequency=${period}&range=${range}`);
       if (!res.ok) throw new Error("failed to fetch cycles");
       const json = await res.json();
       setData(json);
@@ -172,17 +173,17 @@ export default function CyclesClient() {
   }
 
   return (
-    <div className="p-8 max-w-400 mx-auto min-h-screen">
+    <div className="p-4 sm:p-8 max-w-400 mx-auto min-h-screen">
        <header className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-           <h1 className="mb-1 font-instrument text-4xl tracking-tight bg-linear-to-br via-stone-200 bg-clip-text text-transparent drop-shadow-[0_1.5px_1.5px_rgba(0,0,0,0.5)] whitespace-nowrap overflow-hidden">
+           <h1 className="mb-1 font-instrument text-3xl sm:text-4xl tracking-tight bg-linear-to-br via-stone-200 bg-clip-text text-transparent drop-shadow-[0_1.5px_1.5px_rgba(0,0,0,0.5)]">
              Market Cycle Engine
            </h1>
            <p className="text-gray-400 text-sm">Relative Strength vs Momentum of sectors.</p>
         </div>
 
         {/* controls */}
-        <div className="flex items-center gap-4 bg-surface/50 border border-white/5 rounded-full px-4 py-2 backdrop-blur-md shadow-lg">
+        <div className="flex flex-wrap items-center gap-3 lg:gap-4 bg-surface/50 border border-white/5 rounded-2xl lg:rounded-full px-3 lg:px-4 py-2 backdrop-blur-md shadow-lg">
             
             {/* period selector */}
              <div className="flex items-center gap-2 border-r border-white/10 pr-4">
@@ -221,16 +222,16 @@ export default function CyclesClient() {
         </div>
       </header>
       
-      <div className="luxury-card flex flex-col md:flex-row h-175 md:h-200 overflow-hidden bg-black/40">
+      <div className="luxury-card flex flex-col md:flex-row h-auto md:h-175 lg:h-200 overflow-hidden bg-black/40">
         {/* chart area */}
-        <div className="flex-1 relative h-full p-4 md:p-6 min-h-125">
+        <div className="flex-1 relative h-full p-4 md:p-6 min-h-80 md:min-h-125">
         {loading ? (
              <div className="absolute inset-0 flex items-center justify-center flex-col gap-4">
                 <Loader2 className="animate-spin text-primary" size={40} />
                 <p className="text-primary font-instrument">Calculating Orbits...</p>
              </div>
         ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <ScatterChart
                 margin={{ top: 20, right: 30, bottom: 20, left: 10 }}
               >

@@ -96,7 +96,7 @@ const RooContext = createContext<RooContextType | undefined>(undefined);
 export function RooProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [animation, setAnimation] = useState<RooAnimation>('idle-front');
-  const [position, setPosition] = useState<RooPosition>({ x: 100, y: 100 });
+  const [position, setPosition] = useState<RooPosition>({ x: 400, y: 300 });
   const [targetPosition, setTargetPosition] = useState<RooPosition | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -191,6 +191,19 @@ export function RooProvider({ children }: { children: React.ReactNode }) {
 
   /* trigger tutorial on page change if not seen */
   useEffect(() => {
+    let speechBubblesEnabled = true;
+    try {
+      const stored = localStorage.getItem('k-terminal-settings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        speechBubblesEnabled = parsed.speechBubblesEnabled ?? true;
+      }
+    } catch {
+      /* ignore */
+    }
+
+    if (!speechBubblesEnabled) return;
+
     const timer = setTimeout(() => {
       if (!hasSeenTutorial(pathname) && PAGE_TUTORIALS[pathname]) {
         triggerTutorial();

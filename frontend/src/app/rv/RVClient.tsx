@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 import { useEffect, useState, useCallback } from "react";
 import { 
   ScatterChart, Scatter, XAxis, YAxis, ZAxis, 
@@ -142,7 +143,7 @@ export default function RVClient({ initialSectors }: RVClientProps) {
     setLoading(true);
     try {
       const res = await fetch(
-        `http://localhost:8000/analysis/relative-value?sector=${encodeURIComponent(selectedSector)}&x_metric=${xMetric}&y_metric=${yMetric}`
+        `${API_URL}/analysis/relative-value?sector=${encodeURIComponent(selectedSector)}&x_metric=${xMetric}&y_metric=${yMetric}`
       );
       
       if (!res.ok) throw new Error("Failed to fetch RV data");
@@ -238,7 +239,7 @@ export default function RVClient({ initialSectors }: RVClientProps) {
       </div>
       
       {/* scatter chart */}
-      <div className="luxury-card rounded-2xl border border-white/5 p-1 h-140 flex flex-col">
+      <div className="luxury-card rounded-2xl border border-white/5 p-1 h-[50vh] lg:h-140 flex flex-col">
         
         {/* toolbar */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-[#15100d] rounded-t-2xl">
@@ -268,7 +269,7 @@ export default function RVClient({ initialSectors }: RVClientProps) {
               <Loader2 className="animate-spin text-primary" size={32} />
             </div>
           ) : data?.points?.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <ScatterChart margin={{ top: 20, right: 30, bottom: 40, left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#222" />
                 <XAxis 

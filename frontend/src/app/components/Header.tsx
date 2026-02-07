@@ -1,16 +1,19 @@
 "use client";
-import { Search, X, Loader2, Terminal } from "lucide-react"; 
+import { API_URL, apiFetch } from "@/lib/api";
+import { Search, X, Loader2, Terminal, Menu } from "lucide-react"; 
 import { useEffect, useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSidebar } from "@/context/SidebarContext";
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
+  const { isMobile, toggleSidebar } = useSidebar();
   
-  // hide header on cycles & galaxy page
-  const shouldHideHeader = pathname === "/cycles" || pathname === "/galaxy";
+  // hide header on cycles & galaxy page (*only on desktop)
+  const shouldHideHeader = (pathname === "/cycles" || pathname === "/galaxy") && !isMobile;
 
   // search state
   const [query, setQuery] = useState("");
@@ -26,7 +29,7 @@ export default function Header() {
   useEffect(() => {
     const checkStatus = async () => {
       try {
-        const res = await fetch("http://localhost:8000/market-status");
+        const res = await apiFetch(`${API_URL}/market-status`);
         const data = await res.json();
         setIsOpen(data.is_open);
       } catch (e) {
@@ -44,7 +47,7 @@ export default function Header() {
       if (query.length > 1) {
         setLoading(true);
         try {
-          const res = await fetch(`http://localhost:8000/search?q=${query}`);
+          const res = await apiFetch(`${API_URL}/search?q=${query}`);
           const data = await res.json();
           setResults(data);
           setShowDropdown(true);
@@ -87,15 +90,25 @@ export default function Header() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
           transition={{ duration: 0.3 }}
-          className="flex justify-between items-center mb-10 z-40 relative"
+          className="flex justify-between items-center mb-4 lg:mb-10 z-40 relative gap-3"
         >
+          {/* hamburger menu on mobile only */}
+          {isMobile && (
+            <button
+              onClick={toggleSidebar}
+              className="shrink-0 p-2.5 bg-surface border border-white/10 rounded-xl text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <Menu size={20} />
+            </button>
+          )}
+
           {/* search bar */}
           <motion.div
             ref={searchRef}
-            initial={{ width: 384 }} // w-96 = 24rem = 384px
-            animate={{ width: searchFocused ? 600 : 384 }}
+            initial={{ width: isMobile ? "100%" : 384 }}
+            animate={{ width: isMobile ? "100%" : searchFocused ? 600 : 384 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="relative group z-50"
+            className="relative group z-50 min-w-0 flex-1 lg:flex-none"
           >
 
             {/* input field */}
@@ -177,11 +190,11 @@ export default function Header() {
             )}
           </motion.div>
 
-          <div className="flex items-center gap-6">
-            {/* status asx200 open/close (matched to search input size) */}
-            <div className={`px-4 py-2 bg-surface rounded-full border border-white/10 flex items-center gap-2 transition-all ring-1 ring-white/5 backdrop-blur-md shadow-[inset_0_2px_10px_rgba(0,0,0,0.4)] self-center ${isOpen ? 'shadow-[0_0_10px_rgba(78,159,118,0.12)]' : ''}`}>
+          <div className="flex items-center gap-3 lg:gap-6 shrink-0">
+            {/* status asx200 open/close */}
+            <div className={`px-3 lg:px-4 py-2 bg-surface rounded-full border border-white/10 flex items-center gap-2 transition-all ring-1 ring-white/5 backdrop-blur-md shadow-[inset_0_2px_10px_rgba(0,0,0,0.4)] self-center ${isOpen ? 'shadow-[0_0_10px_rgba(78,159,118,0.12)]' : ''}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${isOpen ? "bg-success animate-pulse" : "bg-gray-500"}`}></span>
-              <span className={`text-[14px] font-instrument uppercase tracking-wider ${isOpen ? "text-white" : "text-gray-500"}`}>
+              <span className={`text-[14px] font-instrument uppercase tracking-wider hidden sm:inline ${isOpen ? "text-white" : "text-gray-500"}`}>
                 {isOpen ? "ASX Open" : "ASX Closed"}
               </span>
             </div>

@@ -1,20 +1,21 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { TrendingUp, ChevronUp, ChevronDown, History, AlertCircle } from "lucide-react";
-import { useSidebar } from "@/context/SidebarContext"; 
+import { useSidebar } from "@/context/SidebarContext";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function StatusBar() {
   const [account, setAccount] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [expanded, setExpanded] = useState(false);
-  const { isCollapsed } = useSidebar(); 
+  const { isCollapsed, isMobile } = useSidebar();
 
   const fetchData = async () => {
     try {
       const [accRes, txRes] = await Promise.all([
-          fetch("http://localhost:8000/account"),
-          fetch("http://localhost:8000/transactions")
+          apiFetch(`${API_URL}/account`),
+          apiFetch(`${API_URL}/transactions`)
       ]);
       
       if (accRes.ok) setAccount(await accRes.json());
@@ -46,13 +47,13 @@ export default function StatusBar() {
             exit={{ y: "100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
             // dynamic left margin based on sidebar
-            className="fixed bottom-10 right-0 h-64 bg-surface border-t border-white/10 z-40 shadow-2xl flex flex-col"
-            style={{ left: isCollapsed ? "5rem" : "16rem" }}
+            className="fixed bottom-10 right-0 bg-surface border-t border-white/10 z-40 shadow-2xl flex flex-col h-auto max-h-64 lg:h-64"
+            style={{ left: isMobile ? "0" : isCollapsed ? "5rem" : "16rem" }}
           >
-            <div className="p-6 grid grid-cols-4 gap-8 h-full">
+            <div className="p-4 lg:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8 h-full overflow-y-auto custom-scrollbar">
                 
                 {/* account summary */}
-                <div className="space-y-4 border-r border-white/5 pr-6">
+                <div className="space-y-4 lg:border-r border-white/5 lg:pr-6">
                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Account Summary</h3>
                     <div>
                         <p className="text-gray-400 text-sm">Net Liquidation Value</p>
@@ -65,7 +66,7 @@ export default function StatusBar() {
                 </div>
 
                 {/* p&l stats */}
-                <div className="space-y-4 border-r border-white/5 pr-6">
+                <div className="space-y-4 lg:border-r border-white/5 lg:pr-6">
                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Performance</h3>
                     <div>
                         <p className="text-gray-400 text-sm">Unrealized P&L</p>
@@ -79,7 +80,7 @@ export default function StatusBar() {
                 </div>
 
                 {/* recent activity */}
-                <div className="col-span-2 overflow-y-auto custom-scrollbar pr-2">
+                <div className="md:col-span-2 overflow-y-auto custom-scrollbar pr-2">
                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2 sticky top-0 bg-surface py-2">
                         <History size={14} /> Recent Orders
                     </h3>
@@ -96,7 +97,7 @@ export default function StatusBar() {
                                         <span className="text-gray-500">{new Date(tx.timestamp).toLocaleTimeString()}</span>
                                     </div>
                                     <div className="font-mono text-gray-300">
-                                        {tx.shares} @ ${tx.price.toFixed(2)}
+                                        {tx.shares} @ ${(tx.price ?? 0).toFixed(2)}
                                     </div>
                                 </div>
                             ))}
@@ -116,11 +117,11 @@ export default function StatusBar() {
       <motion.div 
         layout
         // dynamic left margin based on sidebar
-        style={{ left: isCollapsed ? "5rem" : "16rem" }}
-        className="fixed bottom-0 right-0 h-10 bg-[#15100d] border-t border-white/10 z-50 flex items-center px-4 justify-between text-xs font-mono cursor-pointer hover:bg-[#1f1814] transition-colors"
+        style={{ left: isMobile ? "0" : isCollapsed ? "5rem" : "16rem" }}
+        className="fixed bottom-0 right-0 h-10 bg-[#15100d] border-t border-white/10 z-50 flex items-center px-3 lg:px-4 justify-between text-xs font-mono cursor-pointer hover:bg-[#1f1814] transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3 lg:gap-6 overflow-x-auto">
             <div className="flex items-center gap-2">
             <span className="text-gray-500">Position:</span>
             <span className={`${pnlColor} font-bold animate-pulse`}>
@@ -128,7 +129,7 @@ export default function StatusBar() {
             </span>
             </div>
             
-            <div className="h-4 w-px bg-white/10"></div>
+            <div className="h-4 w-px bg-white/10 hidden sm:block"></div>
 
             <div className="flex items-center gap-2">
                 <span className="text-gray-500 uppercase tracking-wider font-bold">Equity</span>

@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 
 import { useEffect, useState, useRef } from "react";
 import { X, Loader2, MessageSquare, AlertTriangle, TrendingUp, FileText, Send } from "lucide-react";
@@ -35,7 +36,7 @@ export default function DocumentViewer({ isOpen, onClose, docUrl, docTitle, tick
     const analyseDocument = async () => {
         setLoading(true);
         try {
-            const res = await fetch("http://localhost:8000/filings/analyse", {
+            const res = await apiFetch(`${API_URL}/filings/analyse`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ url: docUrl, ticker })
@@ -58,7 +59,7 @@ export default function DocumentViewer({ isOpen, onClose, docUrl, docTitle, tick
         setChatLoading(true);
 
         try {
-            const res = await fetch("http://localhost:8000/filings/chat", {
+            const res = await apiFetch(`${API_URL}/filings/chat`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -88,7 +89,6 @@ export default function DocumentViewer({ isOpen, onClose, docUrl, docTitle, tick
         return String(guidance);
     };
 
-    // helper to normalize risks 
     const getRisksArray = (risks: any): string[] => {
         if (!risks) return ["No specific risks identified."];
         if (Array.isArray(risks)) return risks.length > 0 ? risks : ["No specific risks identified."];

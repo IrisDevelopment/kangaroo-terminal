@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { Calendar, DollarSign, Megaphone, BellPlus, Loader2, Info } from "lucide-react";
 import { toast } from "sonner";
@@ -10,7 +11,7 @@ export default function EventHorizon() {
     useEffect(() => {
         const fetchEvents = async () => {
             try {
-                const res = await fetch("http://localhost:8000/calendar/upcoming");
+                const res = await apiFetch(`${API_URL}/calendar/upcoming`);
                 const data = await res.json();
                 setEvents(data);
             } catch (e) {
@@ -24,7 +25,7 @@ export default function EventHorizon() {
 
     const createReminder = async (event: any) => {
         try {
-            const res = await fetch("http://localhost:8000/alerts", {
+            const res = await apiFetch(`${API_URL}/alerts`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -56,13 +57,13 @@ export default function EventHorizon() {
     };
 
     if (loading) return (
-        <div className="luxury-card p-6 min-h-112.5 h-full flex items-center justify-center">
+        <div className="luxury-card p-6 min-h-60 lg:min-h-112.5 h-full flex items-center justify-center">
             <Loader2 className="animate-spin text-primary" />
         </div>
     );
 
     return (
-        <div className="luxury-card p-0 min-h-112.5 h-full flex flex-col overflow-hidden">
+        <div className="luxury-card p-0 min-h-60 lg:min-h-112.5 h-full flex flex-col overflow-hidden">
             <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3">
                 {events.length > 0 ? events.map((evt, i) => (
                     <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors group border border-transparent hover:border-white/5">

@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,7 +23,7 @@ export default function AlertModal({ ticker, currentPrice, isOpen, onClose }: Al
         setLoading(true);
 
         try {
-            const res = await fetch('http://localhost:8000/alerts', {
+            const res = await apiFetch(`${API_URL}/alerts`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { TrendingUp, TrendingDown, Loader2, Layers, ChevronRight, ChevronDown, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -172,8 +173,8 @@ export default function ScreenerClient({ initialMovers, initialMarketMap }: Scre
     const fetchData = async () => {
       try {
         const [moversRes, mapRes] = await Promise.all([
-          fetch("http://localhost:8000/market-movers"),
-          fetch("http://localhost:8000/sector-performance")
+          apiFetch(`${API_URL}/market-movers`),
+          apiFetch(`${API_URL}/sector-performance`)
         ]);
         
         setMovers(await moversRes.json());
@@ -226,7 +227,7 @@ export default function ScreenerClient({ initialMovers, initialMarketMap }: Scre
       </div>
 
       {/* heatmap container */}
-      <div className="luxury-card p-1 rounded-2xl h-175 flex flex-col relative border border-white/5">
+      <div className="luxury-card p-1 rounded-2xl h-[60vh] lg:h-175 flex flex-col relative border border-white/5">
         
         {/* toolbar */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-white/5 bg-[#15100d] z-20 relative rounded-t-2xl">
@@ -242,7 +243,7 @@ export default function ScreenerClient({ initialMovers, initialMarketMap }: Scre
             
             {/* stocks (bottom) */}
             <div className="absolute inset-0 z-0 pt-0.5">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <Treemap
                         data={displayedMap}
                         dataKey="size"
@@ -257,7 +258,7 @@ export default function ScreenerClient({ initialMovers, initialMarketMap }: Scre
 
             {/* sector overlay */}
             <div className="absolute inset-0 z-10 pointer-events-none">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <Treemap
                         data={displayedMap}
                         dataKey="size"

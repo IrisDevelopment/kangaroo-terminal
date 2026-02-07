@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { Globe, Loader2, RefreshCw } from "lucide-react";
 
@@ -9,7 +10,7 @@ export default function EconomicRadar() {
     const fetchCalendar = async () => {
         setLoading(true);
         try {
-            const res = await fetch("http://localhost:8000/macro/calendar");
+            const res = await apiFetch(`${API_URL}/macro/calendar`);
             const data = await res.json();
             setEvents(data);
         } catch (e) {

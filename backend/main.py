@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import or_, func # type: ignore
@@ -24,7 +24,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 import logging
 
-# make the endpoints stop spamming in console logs
+# make the endpoints stop spamming console logs
 class PollingFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         msg = record.getMessage()
@@ -52,6 +52,15 @@ HACKCLUB_API_KEY = os.getenv("HACKCLUB_API_KEY")
 if not HACKCLUB_API_KEY:
     print("warning - HACKCLUB_API_KEY isn't set") 
 
+# display mode cached data 
+DISPLAY_MODE = os.getenv("DISPLAY_MODE", "false").lower() == "true"
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+
+if DISPLAY_MODE:
+    from display_mode import get_or_create_session, session_execute_trade
+    from price_simulator import run_price_simulator
+    print("[🎭] display mode enabled")
+
 client = OpenAI(
     base_url="https://ai.hackclub.com/proxy/v1",
     api_key=HACKCLUB_API_KEY
@@ -69,11 +78,18 @@ models.Base.metadata.create_all(bind=engine)
 SCAN_CACHE = []
 LAST_SCAN_TIME = None
 
-# briefing cache (1 hour expiry)
+# briefing cache (1h)
 BRIEFING_CACHE = {
     "data": None,
     "timestamp": 0
 }
+
+# sparkline cache (30m)
+SPARKLINE_CACHE = {
+    "data": {},
+    "timestamp": 0
+}
+SPARKLINE_CACHE_DURATION = 1800  
 
 async def alert_monitor_task():
     """
@@ -169,37 +185,70 @@ async def scanner_background_task():
 async def lifespan(app: FastAPI):
     # start the scraper in the background
     print("[🦘] kangaroo engine starting...")
-    scraper_task = asyncio.create_task(run_market_engine())
-    scanner_task = asyncio.create_task(scanner_background_task())
-    alerts_task = asyncio.create_task(alert_monitor_task())
-    
-    yield 
-    
-    print("[🦘] kangaroo engine shutting down...")
-    scraper_task.cancel()
-    scanner_task.cancel()
-    alerts_task.cancel()
-    try:
-        await scraper_task
-        await scanner_task
-        await alerts_task
-    except asyncio.CancelledError:
-        pass # cancelled successfully
+
+    if DISPLAY_MODE:
+        # skip real scraper
+        print("[🎭] running in display mode, price simulator active")
+        simulator_task = asyncio.create_task(run_price_simulator())
+        scanner_task = asyncio.create_task(scanner_background_task())
+
+        yield
+
+        print("[🦘] kangaroo engine shutting down...")
+        simulator_task.cancel()
+        scanner_task.cancel()
+        try:
+            await simulator_task
+            await scanner_task
+        except asyncio.CancelledError:
+            pass
+    else:
+        scraper_task = asyncio.create_task(run_market_engine())
+        scanner_task = asyncio.create_task(scanner_background_task())
+        alerts_task = asyncio.create_task(alert_monitor_task())
+        
+        yield 
+        
+        print("[🦘] kangaroo engine shutting down...")
+        scraper_task.cancel()
+        scanner_task.cancel()
+        alerts_task.cancel()
+        try:
+            await scraper_task
+            await scanner_task
+            await alerts_task
+        except asyncio.CancelledError:
+            pass # cancelled 
 
 app = FastAPI(lifespan=lifespan)
 
 # cors 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+def _get_session_id(request: Request, response: Response) -> str | None:
+    """returns session id if in display mode, None otherwise"""
+    if not DISPLAY_MODE:
+        return None
+    cookie_sid = request.cookies.get("kt_session")
+    sid = get_or_create_session(cookie_sid)
+    if sid != cookie_sid:
+        response.set_cookie("kt_session", sid, max_age=86400, httponly=True, samesite="lax")
+    return sid
+
 @app.get("/")
 def read_root():
     return {"status": "kangaroo engine running"}
+
+@app.get("/display-mode")
+def get_display_mode():
+    """tells the frontend whether we're in display mode"""
+    return {"enabled": DISPLAY_MODE}
 
 @app.get("/market-status")
 async def get_market_status():
@@ -224,12 +273,91 @@ async def get_market_cycles(frequency: str = "weekly", range: int = 10):
 @app.get("/scraper-status")
 async def get_scraper_status_endpoint():
     """returns the internal status of the scraper engine"""
+    if DISPLAY_MODE:
+        return {"status": "Demo", "details": "Simulated prices — display mode"}
     return get_engine_status()
 
 @app.get("/stocks")
 def get_stocks(db: Session = Depends(get_db)):
     # returns stocks sorted by market cap (biggest first)
     return db.query(models.Stock).order_by(models.Stock.market_cap.desc()).all()
+
+@app.get("/stocks/sparklines")
+def get_stocks_sparklines(db: Session = Depends(get_db)):
+    """
+    fetches mini price history (8 data points) for all sparklines
+    """
+    global SPARKLINE_CACHE
+    
+    current_time = datetime.now(timezone.utc).timestamp()
+    
+    # check if cache valid
+    if SPARKLINE_CACHE["data"] and (current_time - SPARKLINE_CACHE["timestamp"]) < SPARKLINE_CACHE_DURATION:
+        return SPARKLINE_CACHE["data"]
+    
+    stocks = db.query(models.Stock).order_by(models.Stock.market_cap.desc()).limit(50).all()
+    if not stocks:
+        return {}
+    
+    tickers = [f"{s.ticker}.AX" for s in stocks]
+    
+    try:
+        # batch download 5 days of daily data for sparkline
+        data = yf.download(tickers, period="5d", interval="1d", progress=False, threads=True)['Close']
+        
+        result = {}
+        
+        for stock in stocks:
+            symbol = f"{stock.ticker}.AX"
+            try:
+                if len(tickers) > 1:
+                    series = data[symbol] if symbol in data.columns else None
+                else:
+                    series = data
+                
+                if series is None:
+                    continue
+                    
+                clean_series = series.dropna()
+                
+                if clean_series.empty:
+                    continue
+                
+                prices = clean_series.tolist()
+                if len(prices) > 1:
+                    min_price = min(prices)
+                    max_price = max(prices)
+                    price_range = max_price - min_price
+                    
+                    if price_range > 0:
+                        # (min bar height of 20%)
+                        normalised = [20 + ((p - min_price) / price_range) * 80 for p in prices]
+                    else:
+                        normalised = [50] * len(prices)
+                else:
+                    normalised = [50]
+
+                if len(normalised) < 8:
+                    # pad 
+                    normalised = [normalised[0]] * (8 - len(normalised)) + normalised
+                else:
+                    normalised = normalised[-8:]
+                
+                result[stock.ticker] = normalised
+                
+            except Exception:
+                continue
+        
+        SPARKLINE_CACHE = {
+            "data": result,
+            "timestamp": current_time
+        }
+        
+        return result
+        
+    except Exception as e:
+        print(f"sparklines fetch error: {e}")
+        return SPARKLINE_CACHE.get("data", {})
 
 @app.get("/search")
 def search_stocks(q: str, db: Session = Depends(get_db)):
@@ -652,7 +780,7 @@ async def analyse_stock(ticker: str):
 
     except Exception as e:
         print(f"AI Error: {e}")
-        return {"report": "## ⚠️ System Offline\nKangaroo Neural Net could not poll Gemini."}
+        return {"report": "⚠️ Offline. Kangaroo Neural Net could not poll Gemini."}
     
 @app.get("/stock/{ticker}/valuation")
 def get_stock_valuation(ticker: str):
@@ -800,20 +928,39 @@ def get_sector_performance(db: Session = Depends(get_db)):
     return sorted(results, key=lambda x: x["size"], reverse=True)
 
 @app.post("/stock/{ticker}/toggle-watch")
-async def toggle_watchlist(ticker: str, db: Session = Depends(get_db)):
+async def toggle_watchlist(ticker: str, request: Request, response: Response, db: Session = Depends(get_db)):
     """star/unstar stock"""
     stock = db.query(models.Stock).filter(models.Stock.ticker == ticker.upper()).first()
     if not stock:
         raise HTTPException(status_code=404, detail="Stock not found")
-    
-    stock.is_watched = not stock.is_watched
-    db.commit()
-    
-    return {"is_watched": stock.is_watched}
+
+    sid = _get_session_id(request, response)
+    if sid:
+        # session watchlist
+        entry = db.query(models.SessionWatchlist).filter_by(session_id=sid, ticker=ticker.upper()).first()
+        if entry:
+            db.delete(entry)
+            db.commit()
+            return {"is_watched": False}
+        else:
+            db.add(models.SessionWatchlist(session_id=sid, ticker=ticker.upper()))
+            db.commit()
+            return {"is_watched": True}
+    else:
+        stock.is_watched = not stock.is_watched
+        db.commit()
+        return {"is_watched": stock.is_watched}
 
 @app.get("/watchlist")
-def get_watchlist(db: Session = Depends(get_db)):
+def get_watchlist(request: Request, response: Response, db: Session = Depends(get_db)):
     """returns watched stocks"""
+    sid = _get_session_id(request, response)
+    if sid:
+        # session watchlist
+        watched_tickers = [w.ticker for w in db.query(models.SessionWatchlist).filter_by(session_id=sid).all()]
+        if not watched_tickers:
+            return []
+        return db.query(models.Stock).filter(models.Stock.ticker.in_(watched_tickers)).all()
     return db.query(models.Stock).filter(models.Stock.is_watched == True).all()
 
 @app.get("/watchlist/stories")
@@ -829,10 +976,9 @@ async def get_stock_events(ticker: str, db: Session = Depends(get_db)):
     triggers an agent search to find top 5 volatile events for the stock
     """
     try:
-        # get volatile days
         events = await get_volatile_days(ticker)
         
-        # check cache for existing reasons
+        # check cache 
         results = []
         
         for event in events:
@@ -871,13 +1017,19 @@ async def get_stock_events(ticker: str, db: Session = Depends(get_db)):
         return []
 
 @app.get("/calendar/upcoming")
-def get_upcoming_calendar(db: Session = Depends(get_db)):
+def get_upcoming_calendar(request: Request, response: Response, db: Session = Depends(get_db)):
     """
     scans watchlist & portfolio for upcoming corporate events (earnings, dividends).
     """
     # gather unique tickers
-    watched = db.query(models.Stock).filter(models.Stock.is_watched == True).all()
-    holdings = db.query(models.Holding).all()
+    sid = _get_session_id(request, response)
+    if sid:
+        watched_tickers = [w.ticker for w in db.query(models.SessionWatchlist).filter_by(session_id=sid).all()]
+        watched = db.query(models.Stock).filter(models.Stock.ticker.in_(watched_tickers)).all() if watched_tickers else []
+        holdings = db.query(models.SessionHolding).filter_by(session_id=sid).all()
+    else:
+        watched = db.query(models.Stock).filter(models.Stock.is_watched == True).all()
+        holdings = db.query(models.Holding).all()
     
     tickers = set([s.ticker for s in watched] + [h.ticker for h in holdings])
     
@@ -1044,11 +1196,15 @@ async def get_macro_calendar():
         return []
 
 @app.get("/portfolio")
-async def get_portfolio(db: Session = Depends(get_db)):
+async def get_portfolio(request: Request, response: Response, db: Session = Depends(get_db)):
     """
     returns holdings with live price data and P&L calculations
     """
-    holdings = db.query(models.Holding).all()
+    sid = _get_session_id(request, response)
+    if sid:
+        holdings = db.query(models.SessionHolding).filter_by(session_id=sid).all()
+    else:
+        holdings = db.query(models.Holding).all()
     results = []
     
     for h in holdings:
@@ -1078,11 +1234,15 @@ async def get_portfolio(db: Session = Depends(get_db)):
     return results
 
 @app.get("/portfolio/analytics")
-async def get_portfolio_analytics(db: Session = Depends(get_db)):
+async def get_portfolio_analytics(request: Request, response: Response, db: Session = Depends(get_db)):
     """
     returns breakdown of portfolio by sector & asset class
     """
-    holdings = db.query(models.Holding).all()
+    sid = _get_session_id(request, response)
+    if sid:
+        holdings = db.query(models.SessionHolding).filter_by(session_id=sid).all()
+    else:
+        holdings = db.query(models.Holding).all()
     
     sector_exposure = {}
     total_equity = 0.0
@@ -1113,12 +1273,16 @@ async def get_portfolio_analytics(db: Session = Depends(get_db)):
 
 # risk analysis endpoints
 @app.get("/portfolio/risk")
-async def get_portfolio_risk(db: Session = Depends(get_db)):
+async def get_portfolio_risk(request: Request, response: Response, db: Session = Depends(get_db)):
     """
     calculates beta & correlation matrix
     """
     try:
-        holdings = db.query(models.Holding).all()
+        sid = _get_session_id(request, response)
+        if sid:
+            holdings = db.query(models.SessionHolding).filter_by(session_id=sid).all()
+        else:
+            holdings = db.query(models.Holding).all()
         if not holdings:
             return {"error": "No holdings to analyse"}
 
@@ -1211,12 +1375,16 @@ async def get_portfolio_risk(db: Session = Depends(get_db)):
         return {"error": str(e)}
 
 @app.get("/portfolio/benchmark")
-async def get_portfolio_benchmark(db: Session = Depends(get_db)):
+async def get_portfolio_benchmark(request: Request, response: Response, db: Session = Depends(get_db)):
     """
     calculates synthetic historical performance of the current portfolio vs asx200 over the last year
     """
     try:
-        holdings = db.query(models.Holding).all()
+        sid = _get_session_id(request, response)
+        if sid:
+            holdings = db.query(models.SessionHolding).filter_by(session_id=sid).all()
+        else:
+            holdings = db.query(models.Holding).all()
         if not holdings:
             return {"history": [], "metrics": {}}
 
@@ -1349,16 +1517,27 @@ async def get_portfolio_benchmark(db: Session = Depends(get_db)):
         return {"error": str(e)}
 
 @app.get("/account")
-async def get_account(db: Session = Depends(get_db)):
-    # create account if it doesn't exist
-    account = db.query(models.Account).first()
-    if not account:
-        account = models.Account(balance=100000.0)
-        db.add(account)
-        db.commit()
-    
+async def get_account(request: Request, response: Response, db: Session = Depends(get_db)):
+    sid = _get_session_id(request, response)
+
+    if sid:
+        # display mode — session-scoped account
+        account = db.query(models.SessionAccount).filter_by(session_id=sid).first()
+        if not account:
+            account = models.SessionAccount(session_id=sid, balance=100000.0)
+            db.add(account)
+            db.commit()
+        holdings = db.query(models.SessionHolding).filter_by(session_id=sid).all()
+    else:
+        # normal mode
+        account = db.query(models.Account).first()
+        if not account:
+            account = models.Account(balance=100000.0)
+            db.add(account)
+            db.commit()
+        holdings = db.query(models.Holding).all()
+
     # calculate total equity (cash + stock value)
-    holdings = db.query(models.Holding).all()
     stock_value = 0.0
     for h in holdings:
         stock = db.query(models.Stock).filter(models.Stock.ticker == h.ticker).first()
@@ -1384,48 +1563,69 @@ def internal_execute_trade_wrapper(db: Session, ticker: str, shares: int, price:
     return internal_execute_trade(db, ticker, shares, price, trade_type)
 
 @app.post("/trade")
-async def execute_trade(order: Order, db: Session = Depends(get_db)):
+async def execute_trade(order: Order, request: Request, response: Response, db: Session = Depends(get_db)):
     """
     executes a market trade
     """
+    sid = _get_session_id(request, response)
     try:
-        new_balance = internal_execute_trade(db, order.ticker.upper(), order.shares, order.price, order.type)
-        
-        # update the stock price in DB immediately for market trades
-        stock = db.query(models.Stock).filter(models.Stock.ticker == order.ticker.upper()).first()
-        if stock:
-            stock.price = order.price
-            stock.last_updated = datetime.now()
-            
+        if sid:
+            session_execute_trade(db, sid, order.ticker.upper(), order.shares, order.price, order.type)
+        else:
+            internal_execute_trade(db, order.ticker.upper(), order.shares, order.price, order.type)
+            stock = db.query(models.Stock).filter(models.Stock.ticker == order.ticker.upper()).first()
+            if stock:
+                stock.price = order.price
+                stock.last_updated = datetime.now()
+
         db.commit()
-        return {"message": "Order Filled", "new_balance": new_balance}
+        return {"message": "Order Filled"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/orders/create")
-async def create_pending_order(order: Order, db: Session = Depends(get_db)):
+async def create_pending_order(order: Order, request: Request, response: Response, db: Session = Depends(get_db)):
     """
     creates a pending order (limit buy/sell, stop loss)
     """
-    # frontend will send e.g. "LIMIT_BUY", "LIMIT_SELL", "STOP_LOSS"
-    new_order = models.PendingOrder(
-        ticker=order.ticker.upper(),
-        order_type=order.type, # expects LIMIT_BUY etc
-        shares=order.shares,
-        limit_price=order.price,
-        status="PENDING"
-    )
+    sid = _get_session_id(request, response)
+    if sid:
+        new_order = models.SessionPendingOrder(
+            session_id=sid,
+            ticker=order.ticker.upper(),
+            order_type=order.type,
+            shares=order.shares,
+            limit_price=order.price,
+            status="PENDING"
+        )
+    else:
+        new_order = models.PendingOrder(
+            ticker=order.ticker.upper(),
+            order_type=order.type,
+            shares=order.shares,
+            limit_price=order.price,
+            status="PENDING"
+        )
     db.add(new_order)
     db.commit()
     return {"message": "Order Created", "order_id": new_order.id}
 
 @app.get("/orders/pending")
-async def get_pending_orders(db: Session = Depends(get_db)):
-    orders = db.query(models.PendingOrder).filter(models.PendingOrder.status == "PENDING").all()
+async def get_pending_orders(request: Request, response: Response, db: Session = Depends(get_db)):
+    sid = _get_session_id(request, response)
+    if sid:
+        orders = db.query(models.SessionPendingOrder).filter_by(session_id=sid, status="PENDING").all()
+        HoldingModel = models.SessionHolding
+    else:
+        orders = db.query(models.PendingOrder).filter(models.PendingOrder.status == "PENDING").all()
+        HoldingModel = models.Holding
     res = []
     for o in orders:
         stock = db.query(models.Stock).filter(models.Stock.ticker == o.ticker).first()
-        holding = db.query(models.Holding).filter(models.Holding.ticker == o.ticker).first()
+        if sid:
+            holding = db.query(HoldingModel).filter_by(session_id=sid, ticker=o.ticker).first()
+        else:
+            holding = db.query(HoldingModel).filter(HoldingModel.ticker == o.ticker).first()
         res.append({
             "id": o.id,
             "ticker": o.ticker,
@@ -1441,13 +1641,20 @@ async def get_pending_orders(db: Session = Depends(get_db)):
     return res
 
 @app.get("/orders/pending/{ticker}")
-async def get_stock_pending_orders(ticker: str, db: Session = Depends(get_db)):
-    orders = db.query(models.PendingOrder).filter(
-        models.PendingOrder.ticker == ticker.upper(),
-        models.PendingOrder.status == "PENDING"
-    ).all()
+async def get_stock_pending_orders(ticker: str, request: Request, response: Response, db: Session = Depends(get_db)):
+    sid = _get_session_id(request, response)
+    if sid:
+        orders = db.query(models.SessionPendingOrder).filter_by(
+            session_id=sid, ticker=ticker.upper(), status="PENDING"
+        ).all()
+        holding = db.query(models.SessionHolding).filter_by(session_id=sid, ticker=ticker.upper()).first()
+    else:
+        orders = db.query(models.PendingOrder).filter(
+            models.PendingOrder.ticker == ticker.upper(),
+            models.PendingOrder.status == "PENDING"
+        ).all()
+        holding = db.query(models.Holding).filter(models.Holding.ticker == ticker.upper()).first()
     stock = db.query(models.Stock).filter(models.Stock.ticker == ticker.upper()).first()
-    holding = db.query(models.Holding).filter(models.Holding.ticker == ticker.upper()).first()
     res = []
     for o in orders:
         res.append({
@@ -1465,8 +1672,12 @@ async def get_stock_pending_orders(ticker: str, db: Session = Depends(get_db)):
     return res
 
 @app.delete("/orders/cancel/{order_id}")
-async def cancel_order(order_id: int, db: Session = Depends(get_db)):
-    order = db.query(models.PendingOrder).filter(models.PendingOrder.id == order_id).first()
+async def cancel_order(order_id: int, request: Request, response: Response, db: Session = Depends(get_db)):
+    sid = _get_session_id(request, response)
+    if sid:
+        order = db.query(models.SessionPendingOrder).filter_by(id=order_id, session_id=sid).first()
+    else:
+        order = db.query(models.PendingOrder).filter(models.PendingOrder.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
@@ -1475,17 +1686,29 @@ async def cancel_order(order_id: int, db: Session = Depends(get_db)):
     return {"message": "Order Cancelled"}
 
 @app.get("/orders/history")
-async def get_order_history(db: Session = Depends(get_db)):
+async def get_order_history(request: Request, response: Response, db: Session = Depends(get_db)):
+    sid = _get_session_id(request, response)
+    if sid:
+        return db.query(models.SessionPendingOrder).filter(
+            models.SessionPendingOrder.session_id == sid,
+            models.SessionPendingOrder.status != "PENDING"
+        ).order_by(models.SessionPendingOrder.created_at.desc()).limit(50).all()
     return db.query(models.PendingOrder).filter(models.PendingOrder.status != "PENDING").order_by(models.PendingOrder.created_at.desc()).limit(50).all()
 
 @app.get("/transactions")
-async def get_transactions(db: Session = Depends(get_db)):
+async def get_transactions(request: Request, response: Response, db: Session = Depends(get_db)):
     """last 20 transaction history"""
+    sid = _get_session_id(request, response)
+    if sid:
+        return db.query(models.SessionTransaction).filter_by(session_id=sid).order_by(models.SessionTransaction.timestamp.desc()).limit(20).all()
     return db.query(models.TransactionHistory).order_by(models.TransactionHistory.timestamp.desc()).limit(20).all()
 
 @app.get("/stock/{ticker}/transactions")
-async def get_stock_transactions(ticker: str, db: Session = Depends(get_db)):
+async def get_stock_transactions(ticker: str, request: Request, response: Response, db: Session = Depends(get_db)):
     """all transaction history"""
+    sid = _get_session_id(request, response)
+    if sid:
+        return db.query(models.SessionTransaction).filter_by(session_id=sid, ticker=ticker.upper()).order_by(models.SessionTransaction.timestamp.asc()).all()
     return db.query(models.TransactionHistory).filter(models.TransactionHistory.ticker == ticker.upper()).order_by(models.TransactionHistory.timestamp.asc()).all()
 
 @app.get("/global-markets")
@@ -2000,32 +2223,53 @@ class AlertRequest(BaseModel):
     note: str = None
 
 @app.get("/alerts")
-async def get_alerts(db: Session = Depends(get_db)):
+async def get_alerts(request: Request, response: Response, db: Session = Depends(get_db)):
     """fetch all alerts (history)"""
+    sid = _get_session_id(request, response)
+    if sid:
+        return db.query(models.SessionAlert).filter_by(session_id=sid).order_by(models.SessionAlert.created_at.desc()).all()
     return db.query(models.Alert).order_by(models.Alert.created_at.desc()).all()
 
 @app.get("/alerts/triggered")
-async def get_triggered_alerts(db: Session = Depends(get_db)):
+async def get_triggered_alerts(request: Request, response: Response, db: Session = Depends(get_db)):
     """fetch only triggered alerts (for notifications)"""
+    sid = _get_session_id(request, response)
+    if sid:
+        return db.query(models.SessionAlert).filter_by(session_id=sid, status="TRIGGERED").order_by(models.SessionAlert.created_at.desc()).all()
     return db.query(models.Alert).filter(models.Alert.status == "TRIGGERED").order_by(models.Alert.created_at.desc()).all()
 
 @app.post("/alerts")
-async def create_alert(alert: AlertRequest, db: Session = Depends(get_db)):
-    db_alert = models.Alert(
-        ticker=alert.ticker.upper(),
-        target_price=alert.target_price,
-        condition=alert.condition,
-        status="ACTIVE",
-        note=alert.note
-    )
+async def create_alert(alert: AlertRequest, request: Request, response: Response, db: Session = Depends(get_db)):
+    sid = _get_session_id(request, response)
+    if sid:
+        db_alert = models.SessionAlert(
+            session_id=sid,
+            ticker=alert.ticker.upper(),
+            target_price=alert.target_price,
+            condition=alert.condition,
+            status="ACTIVE",
+            note=alert.note
+        )
+    else:
+        db_alert = models.Alert(
+            ticker=alert.ticker.upper(),
+            target_price=alert.target_price,
+            condition=alert.condition,
+            status="ACTIVE",
+            note=alert.note
+        )
     db.add(db_alert)
     db.commit()
     db.refresh(db_alert)
     return db_alert
 
 @app.delete("/alerts/{alert_id}")
-async def delete_alert(alert_id: int, db: Session = Depends(get_db)):
-    alert = db.query(models.Alert).filter(models.Alert.id == alert_id).first()
+async def delete_alert(alert_id: int, request: Request, response: Response, db: Session = Depends(get_db)):
+    sid = _get_session_id(request, response)
+    if sid:
+        alert = db.query(models.SessionAlert).filter_by(id=alert_id, session_id=sid).first()
+    else:
+        alert = db.query(models.Alert).filter(models.Alert.id == alert_id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
     

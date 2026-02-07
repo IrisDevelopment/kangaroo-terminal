@@ -1,17 +1,22 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 import { ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, YAxis } from "recharts";
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import EconomicRadar from "../components/EconomicRadar";
+import { useSettings } from "@/context/SettingsContext";
 
-const StockCard = ({ ticker, name, price, change, changePercent }: any) => {
+const StockCard = ({ ticker, name, price, change, changePercent, history }: any) => {
     const isPositive = change >= 0;
 
     // track up or down instead of class string directly
     const [flashState, setFlashState] = useState<'up' | 'down' | null>(null);
     const [imageError, setImageError] = useState(false);
     const prevPrice = useRef(price);
+
+    // fallback bars if no history data
+    const sparklineBars = history && history.length > 0 ? history : [40, 60, 45, 70, 50, 80, 60, 85];
 
     useEffect(() => {
         // only flash if the price actually changed
@@ -66,13 +71,13 @@ const StockCard = ({ ticker, name, price, change, changePercent }: any) => {
                     <div>
                         <h3 className="text-lg font-bold text-white leading-none">{ticker}</h3>
                         {/* truncate name if too long */}
-                        <p className="text-xs text-gray-500 font-medium mt-1 truncate max-w-28">{name}</p>
+                        <p className="text-xs text-gray-500 font-medium mt-1 truncate max-w-20">{name}</p>
                     </div>
                 </div>
 
                 {/* visual decoration sparkline */}
                 <div className="flex gap-0.5 items-end h-8 opacity-50">
-                    {[40, 60, 45, 70, 50, 80, 60, 85].map((h, i) => (
+                    {sparklineBars.map((h: number, i: number) => (
                         <div key={i} style={{ height: `${h}%` }} className={`w-1 rounded-sm ${isPositive ? 'bg-success' : 'bg-danger'}`}></div>
                     ))}
                 </div>
@@ -80,7 +85,7 @@ const StockCard = ({ ticker, name, price, change, changePercent }: any) => {
 
             {/* price area */}
             <div className="relative z-10 space-y-1"> {/* text appears above flash */}
-                <span className="text-2xl font-bold tracking-tight text-white">${price.toFixed(2)}</span>
+                <span className="text-2xl font-bold tracking-tight text-white">${(price ?? 0).toFixed(2)}</span>
 
                 <div className="flex items-center gap-2">
                     <div className={`flex items-center text-xs font-bold px-1.5 py-0.5 rounded ${isPositive ? 'text-success bg-success/10' : 'text-danger bg-danger/10'}`}>
@@ -106,7 +111,7 @@ const TickerCard = ({ item }: any) => {
 
             {/* background chart */}
             <div className="absolute inset-0 z-0 opacity-20 group-hover:opacity-30 transition-opacity">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <AreaChart data={chartData}>
                         <defs>
                             <linearGradient id={`grad-${item.symbol}`} x1="0" y1="0" x2="0" y2="1">
@@ -139,7 +144,7 @@ const TickerCard = ({ item }: any) => {
                         ${item.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </span>
                     <span className={`text-[10px] font-bold ${isPositive ? "text-success" : "text-danger"}`}>
-                        {isPositive ? "+" : ""}{item.change_percent.toFixed(2)}%
+                        {isPositive ? "+" : ""}{(item.change_percent ?? 0).toFixed(2)}%
                     </span>
                 </div>
             </div>
@@ -150,34 +155,43 @@ const TickerCard = ({ item }: any) => {
 interface DashboardClientProps {
     initialStocks: any[];
     initialGlobalMarkets: any[];
+    initialSparklines: Record<string, number[]>;
 }
 
-export default function DashboardClient({ initialStocks, initialGlobalMarkets }: DashboardClientProps) {
+export default function DashboardClient({ initialStocks, initialGlobalMarkets, initialSparklines }: DashboardClientProps) {
     const [stocks, setStocks] = useState<any[]>(initialStocks);
     const [globalMarkets, setGlobalMarkets] = useState<any[]>(initialGlobalMarkets);
-    const [loading, setLoading] = useState(false); // Initial loading is handled by Server Component passing props
+    const [sparklines, setSparklines] = useState<Record<string, number[]>>(initialSparklines);
+    const [loading, setLoading] = useState(false);
+    const { isDisplayMode } = useSettings();
 
     useEffect(() => {
         const fetchStocks = async () => {
             try {
                 // fetch stocks
-                const res = await fetch("http://localhost:8000/stocks");
+                const res = await apiFetch(`${API_URL}/stocks`);
                 const data = await res.json();
                 setStocks(data);
 
                 // fetch global markets
-                const globRes = await fetch("http://localhost:8000/global-markets");
+                const globRes = await apiFetch(`${API_URL}/global-markets`);
                 const globJson = await globRes.json();
                 setGlobalMarkets(globJson);
+
+                // fetch sparklines 
+                const sparkRes = await apiFetch(`${API_URL}/stocks/sparklines`);
+                const sparkJson = await sparkRes.json();
+                setSparklines(sparkJson);
 
             } catch (error) {
                 console.error("Failed to fetch data", error);
             }
         };
 
-        const interval = setInterval(fetchStocks, 60000) // refresh every 1 minute
-        return () => clearInterval(interval); // cleanup upon leaving page
-    }, []);
+        const pollRate = isDisplayMode ? 3000 : 60000; // 3s in demo, 1min in live
+        const interval = setInterval(fetchStocks, pollRate);
+        return () => clearInterval(interval);
+    }, [isDisplayMode]);
 
     return (
         <div className="grid grid-cols-1 gap-8 animate-in fade-in duration-500 w-full overflow-x-hidden p-1">
@@ -227,7 +241,7 @@ export default function DashboardClient({ initialStocks, initialGlobalMarkets }:
             </div>
 
             {/* main grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-8">
                 <div className="lg:col-span-4">
                     <h2 className="text-2xl font-instrument mb-6 text-white flex items-center gap-2">
                         Live Market Feed
@@ -242,6 +256,7 @@ export default function DashboardClient({ initialStocks, initialGlobalMarkets }:
                                     price={stock.price}
                                     change={stock.change_amount}
                                     changePercent={stock.change_percent}
+                                    history={sparklines[stock.ticker]}
                                 />
                             </Link>
                         ))}

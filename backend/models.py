@@ -113,3 +113,63 @@ class StoryCache(Base):
     content_json = Column(Text) 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime)
+
+# display mode classes
+class SessionAccount(Base):
+    __tablename__ = "session_accounts"
+
+    id = Column(Integer, primary_key=True)
+    session_id = Column(String, index=True, unique=True)
+    balance = Column(Float, default=100000.0)
+
+class SessionHolding(Base):
+    __tablename__ = "session_holdings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, index=True)
+    ticker = Column(String, index=True)
+    shares = Column(Integer)
+    avg_cost = Column(Float)
+
+class SessionTransaction(Base):
+    __tablename__ = "session_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, index=True)
+    ticker = Column(String)
+    type = Column(String)
+    shares = Column(Integer)
+    price = Column(Float)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+class SessionPendingOrder(Base):
+    __tablename__ = "session_pending_orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, index=True)
+    ticker = Column(String, index=True)
+    order_type = Column(String)
+    shares = Column(Integer)
+    limit_price = Column(Float)
+    status = Column(String, default="PENDING")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    filled_at = Column(DateTime, nullable=True)
+
+class SessionAlert(Base):
+    __tablename__ = "session_alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, index=True)
+    ticker = Column(String, index=True)
+    target_price = Column(Float)
+    condition = Column(String)
+    status = Column(String, default="ACTIVE")
+    note = Column(String, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+class SessionWatchlist(Base):
+    __tablename__ = "session_watchlist"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, index=True)
+    ticker = Column(String, index=True)

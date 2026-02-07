@@ -1,10 +1,11 @@
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import HunterClient from "./HunterClient";
+import { API_URL } from "@/lib/api";
 
 async function getScanResults() {
   try {
-    const res = await fetch("http://localhost:8000/scanner/run", { cache: "no-store" });
+    const res = await fetch(`${API_URL}/scanner/run`, { cache: "no-store" });
     return await res.json();
   } catch (e) {
     console.error(e);

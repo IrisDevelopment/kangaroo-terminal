@@ -1,4 +1,5 @@
 "use client";
+import { API_URL, apiFetch } from "@/lib/api";
 import { useState, useRef, useEffect } from "react";
 import { Send, Bot, User, Loader2, Sparkles, Terminal, ChevronDown, ChevronRight, CheckCircle2, Globe, MousePointer, StopCircle, Square, Layout, ListTodo, Search, AlertCircle, ArrowUpRight, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -85,7 +86,7 @@ export default function AiPage() {
     abortControllerRef.current = controller;
 
     try {
-        const response = await fetch("http://localhost:8000/ai/agent-stream", {
+        const response = await apiFetch(`${API_URL}/ai/agent-stream`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ message: userMsg, history: newHistory }),
@@ -187,7 +188,7 @@ export default function AiPage() {
   };
 
   return (
-    <div className="animate-in fade-in duration-500 h-[calc(100vh-180px)] flex flex-col relative z-0">
+    <div className="animate-in fade-in duration-500 h-[calc(100vh-140px)] lg:h-[calc(100vh-180px)] flex flex-col relative z-0">
 
       <div className="flex flex-1 gap-6 overflow-hidden relative">
         
@@ -260,8 +261,8 @@ export default function AiPage() {
             {/* input area */}
             <div className="absolute bottom-6 left-0 right-0 z-20 flex justify-center px-4 pointer-events-none">
                 <motion.div 
-                    initial={{ width: "40%" }}
-                    animate={{ width: isFocused || input.length > 0 ? "80%" : "40%" }}
+                      initial={{ width: "90%" }}
+                      animate={{ width: isFocused || input.length > 0 ? "95%" : "90%" }}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                     className="pointer-events-auto rounded-full shadow-[0_0_50px_rgba(0,0,0,0.8)]"
                 >
@@ -310,7 +311,7 @@ export default function AiPage() {
                     animate={{ opacity: 1, width: "50%", x: 0 }}
                     exit={{ opacity: 0, width: 0, x: 20 }}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="flex flex-col gap-4 overflow-hidden shrink-0 border-l border-white/5 p-6 h-full relative"
+                      className="hidden lg:flex flex-col gap-4 overflow-hidden shrink-0 border-l border-white/5 p-6 h-full relative"
                 >
                     {/* browser feed card */}
                     <div className="luxury-card flex flex-col border border-white/5 bg-background overflow-hidden rounded-2xl shadow-2xl ring-1 ring-white/5 flex-1">
